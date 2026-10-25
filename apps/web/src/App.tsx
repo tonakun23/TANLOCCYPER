@@ -16,6 +16,7 @@ export default function App() {
   const [soundOn, setSoundOn] = useState(true);
   const [soundVol, setSoundVol] = useState(70);
   const [sortOpen, setSortOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   // Toast thông báo: hiện ~3 giây rồi tự ẩn.
   useEffect(() => {
     if (!s.notice) return;
@@ -127,10 +128,6 @@ export default function App() {
   };
   const homeTop = (
     <div className="tan-top">
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
-        <button className="tan-icon" onClick={s.backToLobby} aria-label="Đóng"><X {...ic} /></button>
-        <button className="tan-icon" aria-label="Menu"><Menu {...ic} /></button>
-      </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <div className="tan-avatar">{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>
         <div>
@@ -139,29 +136,28 @@ export default function App() {
         </div>
       </div>
       <div className="tan-shop">
-        <span className="tan-shop-label">CỬA HÀNG</span>
-        <span className="tan-coins"><img src="/icons/coin-gold.png" alt="Xu" style={{ width: "min(7vh, 44px)", height: "min(7vh, 44px)" }} /> 6,417,098</span>
+        <span className="tan-coins"><img src="/icons/coin.svg" alt="Xu" style={{ width: "min(7vh, 44px)", height: "min(7vh, 44px)" }} /> 6,417,098</span>
       </div>
       <div style={{ display: "flex", gap: 12 }}>
-        <button className="tan-icon" aria-label="Bạn bè"><Users {...ic} /></button>
-        <button className="tan-icon" aria-label="Trợ giúp"><HelpCircle {...ic} /></button>
-        <button className="tan-icon" aria-label="Cài đặt"><Settings {...ic} /></button>
+        <button className="tan-icon" style={{ cursor: "default" }} aria-label="Bạn bè (chưa mở)"><Users {...ic} /></button>
+        <button className="tan-icon" aria-label="Hướng dẫn luật chơi" onClick={() => setHelpOpen(true)}><HelpCircle {...ic} /></button>
+        <button className="tan-icon" style={{ cursor: "default" }} aria-label="Cài đặt (chưa mở ở sảnh)"><Settings {...ic} /></button>
       </div>
     </div>
   );
   const homeBottom = (
     <div className="tan-bottom">
       <div className="tan-bottom-group">
-        <button className="tan-bottom-btn"><span className="circle"><UserPlus {...ic} /></span></button>
-        <button className="tan-bottom-btn"><span className="circle"><Trophy {...ic} /></span></button>
-        <button className="tan-bottom-btn"><span className="circle"><Gift {...ic} /></span><span className="tan-badge">10</span></button>
-        <button className="tan-bottom-btn"><span className="circle"><ClipboardList {...ic} /></span></button>
+        <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><UserPlus {...ic} /></span></button>
+        <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><Trophy {...ic} /></span></button>
+        <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><Gift {...ic} /></span><span className="tan-badge">10</span></button>
+        <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><ClipboardList {...ic} /></span></button>
       </div>
-      <button className="tan-spin">SPIN</button>
+      <button className="tan-spin" style={{ cursor: "default" }}>SPIN</button>
       <div className="tan-bottom-group">
-        <button className="tan-bottom-btn"><span className="circle">f</span></button>
-        <button className="tan-bottom-btn"><span className="circle"><Users {...ic} /></span></button>
-        <button className="tan-bottom-btn"><span className="circle"><Backpack {...ic} /></span></button>
+        <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle">f</span></button>
+        <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><Users {...ic} /></span></button>
+        <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><Backpack {...ic} /></span></button>
         <button className="tan-choose" onClick={s.goToRooms}>CHỌN<br />BÀN</button>
       </div>
     </div>
@@ -173,7 +169,7 @@ export default function App() {
         <div className="tan-rooms-top">
           <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
             <button className="tan-icon" onClick={s.backToLobby} aria-label="Đóng"><X size={22} /></button>
-            <button className="tan-icon" aria-label="Menu"><Menu size={22} /></button>
+            <button className="tan-icon" style={{ cursor: "default" }} aria-label="Menu"><Menu size={22} /></button>
           </div>
           <h1 style={{ margin: "0 auto", fontSize: "clamp(20px, 5vh, 34px)", letterSpacing: 1, color: "#fef3c7" }}>TẠO PHÒNG CHƠI</h1>
           <button className="tan-icon" onClick={s.backToLobby} aria-label="Đóng"><X size={22} /></button>
@@ -220,7 +216,7 @@ export default function App() {
         <div className="tan-rooms-top">
           <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
             <button className="tan-icon" onClick={s.backToLobby} aria-label="Đóng"><X {...ic} /></button>
-            <button className="tan-icon" aria-label="Menu"><Menu {...ic} /></button>
+            <button className="tan-icon" style={{ cursor: "default" }} aria-label="Menu"><Menu {...ic} /></button>
           </div>
           <div style={{ margin: "0 auto", display: "flex", gap: 12 }}>
             <button className="tan-pill orange">CHƠI NGAY</button>
@@ -286,6 +282,23 @@ export default function App() {
          
         </div>
         {homeBottom}
+                {helpOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setHelpOpen(false)}>
+            <div className="w-full max-w-lg max-h-[85vh] overflow-auto bg-red-900 border border-yellow-400 rounded-2xl p-5 text-sm leading-relaxed" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-3"><h2 className="font-bold text-lg">Hướng dẫn luật chơi Tấn (VN-8)</h2><button onClick={() => setHelpOpen(false)} aria-label="Đóng hướng dẫn"><X size={18} /></button></div>
+              <p><b>Mục tiêu:</b> đánh hết bài trên tay trước khi nọc hết. Người cuối cùng còn bài trên tay là người thua ván.</p>
+              <p className="mt-2"><b>Chia bài:</b> 2–4 người, mỗi người 8 lá, bộ Tây 52 lá không Joker. Lá cuối nọc lật ngửa làm chất chủ (ví dụ Cơ là chủ thì Cơ mạnh nhất).</p>
+              <p className="mt-2"><b>Người tấn đầu:</b> người có lá chủ nhỏ nhất. Sau đó tấn theo vòng, người vừa đỡ xong sẽ tấn tiếp.</p>
+              <p className="mt-2"><b>Tấn:</b> tấn 1 lá đầu, sau đó chỉ được thêm lá cùng hạng với lá đã có trên bàn. Một đợt tối đa 6 lá, và không vượt số lá người đỡ có lúc đợt bắt đầu.</p>
+              <p className="mt-2"><b>Đỡ:</b> đỡ bằng lá cùng chất cao hơn, hoặc bằng lá chủ nếu lá tấn không phải chủ. Lá tấn là chủ thì chỉ đỡ bằng lá chủ cao hơn. Người đỡ có 30 giây, quanh avatar có vòng sáng đếm ngược, hết giờ tự lên bài.</p>
+              <p className="mt-2"><b>Lên bài:</b> không đỡ được (hoặc muốn lên) thì bấm Lên bài, nhận hết bài trên bàn, mất lượt tấn tiếp theo.</p>
+              <p className="mt-2"><b>Bốc bài:</b> đỡ thành công và kết thúc đợt thì mọi người bốc từng lá cho đủ 8 lá, theo thứ tự người tấn, người thêm, người đỡ cuối. Hết nọc thì ai hết bài trước là xong, người còn bài cuối cùng thua.</p>
+              <p className="mt-2"><b>Nút trong ván:</b> Kết thúc đợt (người tấn chính, khi mọi lá đã được đỡ), Lên bài, Bốc bài (khi tới lượt bốc), Xếp bài (theo chất hoặc theo hạng, từ A xuống 2).</p>
+              <p className="mt-2 text-yellow-200">Lưu ý: điểm/xu trong game chỉ là điểm thưởng, không nạp/rút hay đổi tiền thật. Bản này không còn chức năng chuyển tấn.</p>
+              <button className="bg-yellow-400 text-black font-bold px-6 py-2 rounded-full mt-4" onClick={() => setHelpOpen(false)}>Đã hiểu</button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
