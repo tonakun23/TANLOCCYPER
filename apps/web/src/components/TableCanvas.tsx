@@ -7,34 +7,25 @@ import { HUMAN_ID } from "../store";
 function drawCard(container: PIXI.Container, x: number, y: number, card: Card | null, back = false) {
   const g = new PIXI.Graphics();
   if (back) {
-    // Mặt sau theo mẫu mới: viền trắng, nền xanh, hình thoi lớn ở giữa có tia sáng.
-    // Vẽ lại bằng Pixi, không dùng ảnh gốc của game khác.
+    // Mặt sau theo phong cách asset: viền trắng, nền đỏ, lưới thoi kem.
     g.rect(x, y, 64, 88);
     g.fill(0xffffff);
     g.stroke({ color: 0x111111, width: 2 });
     container.addChild(g);
     const inner = new PIXI.Graphics();
     inner.rect(x + 3, y + 3, 58, 82);
-    inner.fill(0x2f5aa8);
+    inner.fill(0xc81e1e);
     inner.stroke({ color: 0xffffff, width: 1 });
     container.addChild(inner);
-    const cx = x + 32, cy = y + 44;
-    const diamond = new PIXI.Graphics();
-    diamond.moveTo(cx, cy - 28);
-    diamond.lineTo(cx + 22, cy);
-    diamond.lineTo(cx, cy + 28);
-    diamond.lineTo(cx - 22, cy);
-    diamond.closePath();
-    diamond.stroke({ color: 0xffffff, width: 2 });
-    container.addChild(diamond);
-    const rays = new PIXI.Graphics();
-    for (let i = 0; i < 8; i++) {
-      const a = (i * Math.PI) / 4;
-      rays.moveTo(cx, cy);
-      rays.lineTo(cx + Math.cos(a) * 20, cy + Math.sin(a) * 20);
+    const grid = new PIXI.Graphics();
+    for (let d = -88; d <= 152; d += 10) {
+      grid.moveTo(x + 3 + d, y + 3);
+      grid.lineTo(x + 3 + d + 82, y + 85);
+      grid.moveTo(x + 3 + d + 82, y + 3);
+      grid.lineTo(x + 3 + d, y + 85);
     }
-    rays.stroke({ color: 0xffffff, width: 1 });
-    container.addChild(rays);
+    grid.stroke({ color: 0xf5e6c8, width: 1 });
+    container.addChild(grid);
     return;
   }
   g.rect(x, y, 64, 88);
