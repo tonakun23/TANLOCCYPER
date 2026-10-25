@@ -29,7 +29,7 @@ body { background: #1b3a1b; margin: 0; }
 @keyframes fly-draw-top { from { transform: translate(0,0) scale(1); opacity: 1; } to { transform: translate(0,-38vh) scale(.55); opacity: 0; } }
 @keyframes fly-draw-left { from { transform: translate(0,0) scale(1); opacity: 1; } to { transform: translate(-42vw,0) scale(.55); opacity: 0; } }
 @keyframes fly-draw-right { from { transform: translate(0,0) scale(1); opacity: 1; } to { transform: translate(42vw,0) scale(.55); opacity: 0; } }
-@keyframes fly-draw-bottom { from { transform: translate(0,0) scale(1); opacity: 1; } to { transform: translate(0,30vh) scale(.55); opacity: 0; } }
+@keyframes fly-draw-bottom { from { transform: translate(0,0) scale(1); opacity: 1; } to { transform: translate(18vw,32vh) scale(.72); opacity: 0; } } /* bay xuong cuoi tay bai duoi giua, lech phai = dau cuoi tay */
 /* ---------- Màn Home + chọn phòng kiểu ảnh mẫu, cho game Tấn ---------- */
 .tan-home { background: radial-gradient(ellipse at 50% 30%, #7a121d 0%, #4d0810 45%, #2a0505 100%); }
 .tan-top { display: flex; align-items: center; gap: min(2vw, 18px); padding: min(2vh, 14px) min(2vw, 20px) 0; }

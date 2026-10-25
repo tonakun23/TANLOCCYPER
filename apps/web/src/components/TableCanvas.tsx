@@ -66,7 +66,8 @@ function drawTable(app: PIXI.Application, game: GameState, textures?: Map<string
   app.stage.removeChildren();
   const w = app.screen.width, h = app.screen.height;
   const cx = w / 2, cy = h / 2;
-  const rx = Math.min(390, w * 0.42), ry = Math.min(150, h * 0.36);
+  // Bàn mở rộng ra cho đầy khung (trước oval còn nhiều chỗ trống).
+  const rx = Math.min(560, w * 0.48), ry = Math.min(230, h * 0.44);
   const table = new PIXI.Graphics();
   table.ellipse(cx, cy, rx, ry);
   table.fill(0x2e7d32);

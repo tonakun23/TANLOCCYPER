@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createGame, attack, defend, transfer, resolveTake, resolveFinishAttack, drawStep, canAttackCard, canBeat, parseCard, cardLabel } from "../../../packages/game-core/src/engine";
 import type { GameState } from "../../../packages/game-core/src/engine";
 import { botDefendStep, botAttackStep, botAdderStep, lowestCard } from "./game/bot";
+import { playDealSound, playCardSound, playDrawSound } from "./game/sound";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 function cloneGame(g: GameState): GameState {
@@ -32,7 +33,7 @@ interface GameStore {
   startGame: () => void; backToLobby: () => void; goToRooms: () => void; goToCreate: (isPrivate: boolean) => void; setRoomCode: (code: string | null) => void; setSelected: (v: string | null) => void;
   playCard: (cardId: string) => void; defendPair: (attackId: string, defenseCardId?: string) => void;
   takeCards: () => void; finishAttackAction: () => void; transferCard: () => void; passAdd: () => void;
-  drawCards: () => Promise<void>; runDrawPhase: () => Promise<void>;
+  drawCards: () => Promise<void>; runDrawPhase: () => Promise<void>; sortHand: (mode: "suit" | "rank") => void;
   runBots: () => Promise<void>; addLog: (msg: string) => void;
   sendChat: (text: string) => void; clearNotice: () => void;
   autoLowestAttack: () => void;
@@ -87,6 +88,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     for (let i = 1; i < playerCount; i++) names.push(`Bot ${i}`);
     const game = createGame({ playerCount, playerNames: names, allowTransfer });
     set({ screen: "game", game: cloneGame(game), selected: null, humanAddPassed: false, chat: [{ id: Date.now(), from: "Hệ thống", text: "Chat trong ván này thôi, thoát ván là mất, không lưu lại." }], notice: `Ván mới: chất chủ ${game.trumpSuit}, ${game.players.find((p) => p.id === game.attackerId)?.name} tấn đầu.`, noticeKey: Date.now() });
+    playDealSound();
     void get().runBots();
   },
   playCard: () => {},
@@ -98,6 +100,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   runBots: async () => {},
   drawCards: async () => {},
   runDrawPhase: async () => {},
+  sortHand: () => {},
   autoLowestAttack: () => {},
 }));
 
@@ -122,7 +125,7 @@ store.setState({
     const card = me.hand.find((c) => c.id === cardId);
     if (card && canAttackCard(game, HUMAN_ID, card)) {
       const before = tableIds(game);
-      try { attack(game, HUMAN_ID, cardId); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), selected: null, humanAddPassed: false, flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); store.getState().addLog(`Bạn đánh ${cardLabel(card)}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
+      try { attack(game, HUMAN_ID, cardId); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), selected: null, humanAddPassed: false, flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); playCardSound(); store.getState().addLog(`Bạn đánh ${cardLabel(card)}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
     } else { store.setState({ selected: cardId }); }
     void selected;
   },
@@ -131,7 +134,7 @@ store.setState({
     const defenseId = defenseCardId || selected;
     if (!game || !defenseId) return;
     const before = tableIds(game);
-    try { defend(game, HUMAN_ID, attackId, defenseId); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), selected: null, humanAddPassed: false, flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); store.getState().addLog(`Bạn đỡ ${attackId} bằng ${cardLabel(parseCard(defenseId))}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
+    try { defend(game, HUMAN_ID, attackId, defenseId); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), selected: null, humanAddPassed: false, flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); playCardSound(); store.getState().addLog(`Bạn đỡ ${attackId} bằng ${cardLabel(parseCard(defenseId))}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
   },
   takeCards: () => {
     const { game } = store.getState(); if (!game) return;
@@ -153,7 +156,7 @@ store.setState({
         if (nextId !== HUMAN_ID) break; // tới bot, để runDrawPhase lo
         const card = drawStep(g);
         if (!card) { store.setState({ game: cloneGame(g) }); break; }
-        store.setState({ game: cloneGame(g), drawFlying: { cardId: card.id, toId: HUMAN_ID, key: Date.now() } });
+        playDrawSound(); store.setState({ game: cloneGame(g), drawFlying: { cardId: card.id, toId: HUMAN_ID, key: Date.now() } });
         await delay(450);
       }
     } finally { store.setState({ drawing: false, drawFlying: null }); }
@@ -174,7 +177,7 @@ store.setState({
         if (nextId === HUMAN_ID) break;
         const card = drawStep(g);
         if (!card) { store.setState({ game: cloneGame(g) }); break; }
-        store.setState({ game: cloneGame(g), drawFlying: { cardId: card.id, toId: nextId, key: Date.now() } });
+        playDrawSound(); store.setState({ game: cloneGame(g), drawFlying: { cardId: card.id, toId: nextId, key: Date.now() } });
         await delay(450);
       }
     } finally { store.setState({ drawing: false, drawFlying: null }); }
@@ -188,6 +191,19 @@ store.setState({
     try { transfer(game, HUMAN_ID, selected); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), selected: null, flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); store.getState().addLog(`Bạn chuyển tấn bằng ${selected}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
   },
   passAdd: () => { store.setState({ humanAddPassed: true }); void store.getState().runBots(); },
+  sortHand: (mode) => {
+    const { game } = store.getState(); if (!game) return;
+    const me = game.players.find((p) => p.id === HUMAN_ID); if (!me) return;
+    // Xep bai: "suit" = nhom cung chat, trong chat tu A xuong 2;
+    // "rank" = nhom la cung hang, tu A xuong 2, trong nhom theo chat.
+    const suitOrder: Record<string, number> = { S: 0, H: 1, D: 2, C: 3 };
+    const sorted = [...me.hand].sort((a, b) => {
+      if (mode === "suit") return suitOrder[a.suit] - suitOrder[b.suit] || b.rank - a.rank;
+      return b.rank - a.rank || suitOrder[a.suit] - suitOrder[b.suit];
+    });
+    me.hand = sorted;
+    store.setState({ game: cloneGame(game) });
+  },
   autoLowestAttack: () => {
     const { game } = store.getState(); if (!game) return;
     const me = game.players.find((p) => p.id === HUMAN_ID); if (!me || !me.hand.length) return;
@@ -214,6 +230,7 @@ store.setState({
           const before = tableIds(g);
           const msg = fn();
           const played = newTableCard(before, g);
+          if (played) playCardSound();
           store.setState({ game: cloneGame(g), humanAddPassed: false, flying: played ? { cardId: played, by: actorId, key: Date.now() } : undefined });
           if (msg) store.getState().addLog(msg);
         };

@@ -3,7 +3,8 @@ import { useGameStore, HUMAN_ID } from "./store";
 import { CardView } from "./components/CardView";
 import { TableCanvas } from "./components/TableCanvas";
 import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, cardLabel } from "../../../packages/game-core/src/engine";
-import { X, Menu, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, } from "lucide-react";
+import { X, Menu, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, ArrowDownWideNarrow, } from "lucide-react";
+import { playDealSound, playCardSound, setSoundEnabled, setSoundVolume } from "./game/sound";
 const ic = { size: 22, strokeWidth: 2 };
 
 export default function App() {
@@ -11,6 +12,10 @@ export default function App() {
   const [seconds, setSeconds] = useState(30);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatText, setChatText] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [soundOn, setSoundOn] = useState(true);
+  const [soundVol, setSoundVol] = useState(70);
+  const [sortOpen, setSortOpen] = useState(false);
   // Toast thông báo: hiện ~3 giây rồi tự ẩn.
   useEffect(() => {
     if (!s.notice) return;
@@ -307,7 +312,7 @@ export default function App() {
         <span className="flex gap-2 items-center">
           {s.roomCode && <span className="bg-yellow-400 text-black font-bold px-3 h-9 rounded-full flex items-center text-sm">Mã phòng: {s.roomCode}</span>}
           <button className="px-4 h-9 rounded-full bg-red-900 border border-white/30 text-sm" onClick={() => setChatOpen((v) => !v)}><span className="flex items-center gap-1"><MessageCircle size={18} /> Chat{s.chat.length > 1 ? ` (${s.chat.length - 1})` : ""}</span></button>
-          <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 flex items-center justify-center" title="Cài đặt chưa làm trong bản bot"><Settings size={18} /></button>
+          <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 flex items-center justify-center" title="Cài đặt âm thanh" onClick={() => setSettingsOpen(true)}><Settings size={18} /></button>
         </span>
       </div>
       {/* Toast thông báo ngắn gọn, thay khung log dài cũ (đã bỏ). */}
@@ -332,12 +337,12 @@ export default function App() {
           return (
             <div key={p.id} className={`${pos} z-20 flex items-center gap-2 bg-black/55 px-2 py-1 rounded-xl text-sm ${p.id === game.attackerId || p.id === game.defenderId ? "outline outline-yellow-400" : ""}`}>
               <div className="relative shrink-0" style={p.id === game.defenderId && isDefending ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
-                <img src={`/durak/ui/avatar_${(idx % 3) + 1}.png`} alt={p.name} className="w-11 h-11 rounded-full block" />
+                <img src={`/durak/ui/avatar_${(idx % 3) + 1}.png`} alt={p.name} className="w-[100px] h-[100px] rounded-full block" />
                 {p.id === game.defenderId && isDefending && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-400 text-black font-black text-[11px] px-1.5 rounded-full border border-white">{defendSeconds}s</span>}
               </div>
               <div className="relative shrink-0">
-                <img src="/durak/cards/back.png" alt="Bài úp" className="w-9 h-12 rounded" />
-                <span className="absolute -top-2 -right-2 bg-yellow-400 text-black font-black text-xs w-6 h-6 rounded-full flex items-center justify-center border-2 border-white">{p.hand.length}</span>
+                <img src="/durak/cards/back.png" alt="Bài úp" className="w-[72px] h-[100px] rounded" />
+                <span className="absolute inset-0 flex items-center justify-center"><span className="bg-yellow-400 text-black font-black text-lg w-9 h-9 rounded-full flex items-center justify-center border-2 border-white shadow">{p.hand.length}</span></span>
               </div>
               <span className="whitespace-nowrap flex flex-col leading-tight"><b>{p.name}</b><span className="flex items-center gap-1">{p.id === game.attackerId ? <Swords size={15} /> : null} {p.id === game.defenderId ? <Shield size={15} /> : null} {p.finished ? <Check size={15} /> : null} {p.hand.length} lá</span></span>
             </div>
@@ -368,14 +373,21 @@ export default function App() {
           </div>
         );
       })()}
-      <div className="text-center space-x-2 py-2 shrink-0">
+      <div className="text-center space-x-2 py-2 shrink-0 relative">
+        <button className="bg-white text-black font-semibold px-4 py-2 rounded-full" onClick={() => setSortOpen((v) => !v)}><span className="flex items-center gap-1"><ArrowDownWideNarrow size={16} /> Xếp bài</span></button>
+        {sortOpen && (
+          <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-50 bg-black/90 border border-yellow-400/60 rounded-xl p-2 text-sm flex flex-col gap-1">
+            <button className="bg-yellow-400 text-black font-bold px-4 py-2 rounded-full" onClick={() => { s.sortHand("suit"); setSortOpen(false); }}>Theo chất (cùng chất, A → 2)</button>
+            <button className="bg-yellow-400 text-black font-bold px-4 py-2 rounded-full" onClick={() => { s.sortHand("rank"); setSortOpen(false); }}>Theo hạng (cùng hạng, A → 2)</button>
+          </div>
+        )}
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmAttacker && allDefended)} onClick={s.finishAttackAction}>Kết thúc đợt</button>
         <button className="bg-red-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmDefender && game.table.length > 0)} onClick={s.takeCards}>Lên bài</button>
         <button className="bg-green-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(game.phase === "DRAWING" && game.pendingDraw[0] === HUMAN_ID && !s.drawing)} onClick={s.drawCards}>Bốc bài</button>
       </div>
       <div className="flex justify-center items-center flex-wrap shrink-0 px-2 pb-2 gap-2">
         <div className="relative shrink-0" style={iAmDefender && isDefending ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
-          <div className="tan-avatar" style={{ width: 44, height: 44, fontSize: 20 }}>{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>
+          <div className="tan-avatar" style={{ width: 100, height: 100, fontSize: 36 }}>{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>
           {iAmDefender && isDefending && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-400 text-black font-black text-[11px] px-1.5 rounded-full border border-white">{defendSeconds}s</span>}
         </div>
         {me?.hand.map((c, i) => (
@@ -405,6 +417,21 @@ export default function App() {
             <button className="bg-yellow-400 text-black font-bold px-4 rounded-full text-sm" type="submit">Gửi</button>
           </form>
           <p className="text-center text-white/50 text-xs pb-2">Thoát ván là mất chat, không lưu lại.</p>
+        </div>
+      )}
+      {settingsOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="w-80 max-w-[92vw] bg-red-900 border border-yellow-400 rounded-2xl p-5">
+            <div className="flex justify-between items-center mb-3"><h2 className="font-bold text-lg flex items-center gap-2"><Settings size={18} /> Cài đặt âm thanh</h2><button onClick={() => setSettingsOpen(false)} aria-label="Đóng cài đặt"><X size={18} /></button></div>
+            <label className="flex items-center gap-2 mb-3 cursor-pointer"><input type="checkbox" checked={soundOn} onChange={(e) => { setSoundOn(e.target.checked); setSoundEnabled(e.target.checked); }} /> Bật âm thanh</label>
+            <label className="block text-sm mb-1">Âm lượng: {soundVol}%</label>
+            <input className="w-full mb-3" type="range" min={0} max={100} value={soundVol} onChange={(e) => { const v = Number(e.target.value); setSoundVol(v); setSoundVolume(v / 100); }} />
+            <div className="flex gap-2">
+              <button className="flex-1 bg-yellow-400 text-black font-bold px-3 py-2 rounded-full text-sm" onClick={() => playDealSound()}><span className="flex items-center justify-center gap-1"><Volume2 size={16} /> Thử phát bài</span></button>
+              <button className="flex-1 bg-yellow-400 text-black font-bold px-3 py-2 rounded-full text-sm" onClick={() => playCardSound()}><span className="flex items-center justify-center gap-1"><Volume2 size={16} /> Thử ra lá</span></button>
+            </div>
+            <p className="text-white/60 text-xs mt-3">Âm phát bài kêu khi bắt đầu ván mới, âm ra lá kêu mỗi khi có lá đánh lên bàn. Âm rút bài cũng có tiếng xẹt nhẹ.</p>
+          </div>
         </div>
       )}
       {game.phase === "FINISHED" && (
