@@ -23,7 +23,7 @@ export interface ChatMsg { id: number; from: string; text: string; }
 const BOT_REPLIES = ["Chơi hay đấy!", "Lá này khó đỡ quá!", "Tới lượt bạn rồi kìa.", "Haha, ván này căng!", "Để xem bạn đỡ sao đây.", "Bài mình cũng không đẹp lắm đâu."];
 
 interface GameStore {
-  screen: "lobby" | "rooms" | "create" | "waiting" | "game"; waitingCode: string | null; waitingCount: number; waitingReady: boolean; waitingMode: "private" | "quick" | "join"; myId: string; onlineMode: boolean; onlineRoom: { code: string; bet: string; maxPlayers: number; hostId: string; state: string; players: { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean }[] } | null; onlineMyLobbyId: string | null; onlineWsStatus: string; onlineError: string | null; googleUser: { name: string; email: string; avatar: string | null } | null; firebaseConfig: Record<string, string> | null;
+  screen: "login" | "lobby" | "rooms" | "create" | "waiting" | "game"; waitingCode: string | null; waitingCount: number; waitingReady: boolean; waitingMode: "private" | "quick" | "join"; myId: string; onlineMode: boolean; onlineRoom: { code: string; bet: string; maxPlayers: number; hostId: string; state: string; players: { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean }[] } | null; onlineMyLobbyId: string | null; onlineWsStatus: string; onlineError: string | null; googleUser: { name: string; email: string; avatar: string | null } | null; firebaseConfig: Record<string, string> | null;
   // Mã phòng riêng (chơi với bạn): hiện luôn góc phải trong ván, thoát ván là hết.
   roomCode: string | null; createPrivate: boolean;
   playerName: string; playerCount: number; allowTransfer: boolean;
@@ -45,7 +45,7 @@ interface GameStore {
   runBots: () => Promise<void>; addLog: (msg: string) => void;
   sendChat: (text: string) => void; clearNotice: () => void;
   autoLowestAttack: () => void; passAttack: () => void; followWindow: { mode: "take" | "add"; takerId?: string; key: number } | null; resolveTakeFollow: () => void; passFollow: () => void; takeAnimCards: string[] | null; clearTakeAnim: () => void;
-  onlineConnect: (m: Record<string, unknown>) => void; onlineCreateRoom: (bet: string, count: number) => void; onlineJoinRoom: (code: string) => void; onlineReady: (v: boolean) => void; onlineStart: () => void; onlineLeave: () => void; setGoogleUser: (u: { name: string; email: string; avatar: string | null } | null) => void; loadFirebaseConfig: () => Promise<void>; firebaseLogin: () => Promise<void>;
+  onlineConnect: (m: Record<string, unknown>) => void; onlineCreateRoom: (bet: string, count: number) => void; onlineJoinRoom: (code: string) => void; onlineReady: (v: boolean) => void; onlineStart: () => void; onlineLeave: () => void; setGoogleUser: (u: { name: string; email: string; avatar: string | null } | null) => void; loadFirebaseConfig: () => Promise<void>; firebaseLogin: () => Promise<void>; googleLogout: () => Promise<void>;
 }
 
 // Lá mới xuất hiện trên bàn sau một nước đi (so với trước nước đi).
@@ -63,7 +63,7 @@ function tableIds(game: GameState): Set<string> {
 }
 
 export const useGameStore = create<GameStore>()((set, get) => ({
-  screen: "lobby", roomCode: null, waitingCode: null, waitingCount: 4, waitingReady: false, waitingMode: "private", myId: HUMAN_ID, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, onlineWsStatus: "disconnected", onlineError: null, googleUser: null, firebaseConfig: null, createPrivate: false, playerName: "Bạn", playerCount: 4, allowTransfer: true,
+  screen: "login", roomCode: null, waitingCode: null, waitingCount: 4, waitingReady: false, waitingMode: "private", myId: HUMAN_ID, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, onlineWsStatus: "disconnected", onlineError: null, googleUser: null, firebaseConfig: null, createPrivate: false, playerName: "Bạn", playerCount: 4, allowTransfer: true,
   game: null, selected: null, humanAddPassed: false, botBusy: false,
   notice: null, noticeKey: 0, flying: null, drawFlying: null, drawing: false, chat: [],
   setPlayerName: (v) => set({ playerName: v }),
@@ -88,7 +88,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       }, 900);
     }
   },
-  backToLobby: () => { const st = get(); if (st.onlineMode) { try { onlineSend({ type: "leave" }); } catch { /* bỏ qua */ } try { onlineWs?.close(); } catch { /* bỏ qua */ } set({ screen: "lobby", game: null, selected: null, notice: null, flying: null, chat: [], roomCode: null, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, followWindow: null, takeAnimCards: null }); return; } set({ screen: "lobby", game: null, selected: null, notice: null, flying: null, chat: [], roomCode: null }); },
+  backToLobby: () => { const st = get(); if (st.onlineMode) { try { onlineSend({ type: "leave" }); } catch { /* bỏ qua */ } try { onlineWs?.close(); } catch { /* bỏ qua */ } set({ screen: st.googleUser ? "lobby" : "login", game: null, selected: null, notice: null, flying: null, chat: [], roomCode: null, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, followWindow: null, takeAnimCards: null }); return; } set({ screen: st.googleUser ? "lobby" : "login", game: null, selected: null, notice: null, flying: null, chat: [], roomCode: null }); },
   goToRooms: () => set({ screen: "rooms" }),
   goToCreate: (isPrivate) => set({ screen: "create", createPrivate: isPrivate }),
   goToWaiting: (code, count, mode) => set({ screen: "waiting", waitingCode: code, waitingCount: count, waitingReady: false, waitingMode: mode, roomCode: code }),
@@ -132,7 +132,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   sortHand: () => {},
   autoLowestAttack: () => {},
   passAttack: () => {},
-  followWindow: null, resolveTakeFollow: () => {}, passFollow: () => {}, takeAnimCards: null, clearTakeAnim: () => {}, onlineConnect: () => {}, onlineCreateRoom: () => {}, onlineJoinRoom: () => {}, onlineReady: () => {}, onlineStart: () => {}, onlineLeave: () => {}, setGoogleUser: () => {}, loadFirebaseConfig: async () => {}, firebaseLogin: async () => {},
+  followWindow: null, resolveTakeFollow: () => {}, passFollow: () => {}, takeAnimCards: null, clearTakeAnim: () => {}, onlineConnect: () => {}, onlineCreateRoom: () => {}, onlineJoinRoom: () => {}, onlineReady: () => {}, onlineStart: () => {}, onlineLeave: () => {}, setGoogleUser: () => {}, loadFirebaseConfig: async () => {}, firebaseLogin: async () => {}, googleLogout: async () => {},
 }));
 
 // Gán các action sau khi store tạo xong để tránh vòng tham chiếu trong create().
@@ -370,18 +370,41 @@ store.setState({
   onlineLeave: () => { try { onlineSend({ type: "leave" }); } catch { /* bỏ qua */ } try { onlineWs?.close(); } catch { /* bỏ qua */ } store.setState({ onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, game: null, screen: "lobby" }); },
   setGoogleUser: (u: { name: string; email: string; avatar: string | null } | null) => { store.setState({ googleUser: u }); if (u) store.setState({ playerName: u.name }); },
   loadFirebaseConfig: async () => {
-    try { const r = await fetch(`${API_BASE}/auth/config`); const j = await r.json(); if (j.firebaseConfig) store.setState({ firebaseConfig: j.firebaseConfig }); } catch { /* chưa có backend thì thôi */ }
+    try {
+      const r = await fetch(`${API_BASE}/auth/config`); const j = await r.json(); if (!j.firebaseConfig) return;
+      store.setState({ firebaseConfig: j.firebaseConfig });
+      // Theo dõi trạng thái Firebase: vừa quay lại từ Google (redirect) hoặc đã đăng nhập từ trước
+      // (tải lại trang) đều vào đây; chỉ chuyển sang sảnh khi đang ở màn đăng nhập, không đá khỏi ván đang chơi.
+      try {
+        const { watchFirebaseUser } = await import("./game/firebase-auth");
+        if (!(globalThis as unknown as { __tanlocWatch?: boolean }).__tanlocWatch) {
+          (globalThis as unknown as { __tanlocWatch?: boolean }).__tanlocWatch = true;
+          watchFirebaseUser(j.firebaseConfig, async (fb) => {
+            if (!fb) return;
+            try {
+              const rr = await fetch(`${API_BASE}/auth/firebase`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: fb.idToken }) });
+              const jj = await rr.json();
+              if (rr.ok) {
+                try { localStorage.setItem("tanloc-session", jj.sessionToken); } catch { /* bỏ qua */ }
+                store.setState((prev) => ({ googleUser: jj.user, playerName: jj.user.name, screen: prev.screen === "login" ? "lobby" : prev.screen }));
+              }
+            } catch { /* bỏ qua */ }
+          });
+        }
+      } catch { /* chưa đăng nhập thì ở lại màn đăng nhập */ }
+    } catch { /* chưa có backend thì thôi */ }
   },
   firebaseLogin: async () => {
     const cfg = store.getState().firebaseConfig;
     if (!cfg || !cfg.apiKey || !cfg.projectId || !cfg.appId) throw new Error("Firebase chưa cấu hình trên Render");
-    const { signInGoogleFirebase } = await import("./game/firebase-auth");
-    const fb = await signInGoogleFirebase(cfg as unknown as Parameters<typeof signInGoogleFirebase>[0]);
-    const r = await fetch(`${API_BASE}/auth/firebase`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: fb.idToken }) });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.message || j.error || "Đăng nhập Google thất bại");
-    try { localStorage.setItem("tanloc-session", j.sessionToken); } catch { /* bỏ qua */ }
-    store.setState({ googleUser: j.user, playerName: j.user.name });
+    // Dùng redirect thay popup: không còn bị trình duyệt chặn popup nữa.
+    const { signInGoogleRedirect } = await import("./game/firebase-auth");
+    await signInGoogleRedirect(cfg as unknown as Parameters<typeof signInGoogleRedirect>[0]);
+  },
+  googleLogout: async () => {
+    try { localStorage.removeItem("tanloc-session"); } catch { /* bỏ qua */ }
+    try { const m = await import("./game/firebase-auth"); await m.signOutFirebase(); } catch { /* bỏ qua */ }
+    store.setState({ googleUser: null, screen: "login" });
   },
   runBots: async () => {
     const s = store.getState(); if (s.onlineMode) return; if (s.botBusy || !s.game || s.game.phase === "FINISHED") return;

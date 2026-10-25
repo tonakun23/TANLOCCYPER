@@ -306,6 +306,28 @@ export default function App() {
       </div>
     );
   }
+  if (s.screen === "login") {
+    return (
+      <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col items-center justify-center" style={{ gap: 24, padding: 24 }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 42, fontWeight: 900, letterSpacing: 2 }}>TẤN ONLINE</div>
+          <div style={{ color: "#ffd97a", fontWeight: 700, marginTop: 6 }}>VN-8 · 2–4 người · Chơi với người thật</div>
+        </div>
+        <div className="tan-fan">
+          <img src="/durak/cards/AS.png" alt="A bích" /><img src="/durak/cards/AD.png" alt="A rô" /><img src="/durak/cards/AC.png" alt="A chuồn" /><img src="/durak/cards/AH.png" alt="A cơ" />
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <p style={{ color: "rgba(255,255,255,.85)", marginBottom: 16 }}>Đăng nhập Google để vào game. Tên và ảnh đại diện Google sẽ dùng làm tên người chơi trong phòng.</p>
+          {s.firebaseConfig ? (
+            <button className="bg-white text-black font-bold px-8 py-3 rounded-full text-lg" onClick={async () => { try { await s.firebaseLogin(); setGoogleError(""); } catch (e) { setGoogleError((e as Error).message); } }}>Đăng nhập bằng Google</button>
+          ) : (
+            <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13 }}>Đăng nhập Google chưa cấu hình (cần Firebase config trên Render).</p>
+          )}
+          {googleError && <p style={{ color: "#f87171", fontSize: 13, marginTop: 10 }}>{googleError}</p>}
+        </div>
+      </div>
+    );
+  }
   if (s.screen === "lobby" || !game) {
     return (
       <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
@@ -315,7 +337,7 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}>
               {s.googleUser.avatar && <img src={s.googleUser.avatar} alt="" className="w-9 h-9 rounded-full" />}
               <span style={{ fontWeight: 700 }}>Đã đăng nhập Google: {s.googleUser.name}</span>
-              <button className="bg-white text-black font-bold px-3 py-1 rounded-full text-sm" onClick={async () => { try { localStorage.removeItem("tanloc-session"); } catch { /* bỏ qua */ } try { const m = await import("./game/firebase-auth"); await m.signOutFirebase(); } catch { /* bỏ qua */ } s.setGoogleUser(null); }}>Đăng xuất</button>
+              <button className="bg-white text-black font-bold px-3 py-1 rounded-full text-sm" onClick={() => void s.googleLogout()}>Đăng xuất</button>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
