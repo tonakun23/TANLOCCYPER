@@ -8,10 +8,14 @@ body { background: #1b3a1b; margin: 0; }
 .card { width: 72px; height: 100px; background: #fff; color: #111; border-radius: 10px; border: none; box-sizing: border-box; padding: 6px 0 0 6px; font-weight: 800; box-shadow: 0 4px 10px rgba(0,0,0,.4); cursor: pointer; text-align: left; position: relative; overflow: hidden; flex-shrink: 0; transition: transform .25s ease, box-shadow .25s ease; }
 .card:hover { transform: translateY(-10px); box-shadow: 0 10px 18px rgba(0,0,0,.5); }
 .card:active { transform: translateY(-2px) scale(.97); }
-/* Lá bay lên bàn: người chơi bay từ dưới lên, bot bay từ trên xuống. */
+/* Lá bay lên bàn: bay từ đúng hướng của người ra bài (dưới/trên/trái/phải). */
 .flying-card { position: fixed; left: 50%; top: 46%; margin-left: -36px; margin-top: -50px; z-index: 50; pointer-events: none; filter: drop-shadow(0 12px 16px rgba(0,0,0,.6)); }
 .flying-human { animation: fly-human .65s ease-out forwards; }
 .flying-bot { animation: fly-bot .65s ease-out forwards; }
+.flying-bottom { animation: fly-human .65s ease-out forwards; }
+.flying-top { animation: fly-bot .65s ease-out forwards; }
+.flying-left { animation: fly-left .65s ease-out forwards; }
+.flying-right { animation: fly-right .65s ease-out forwards; }
 @keyframes fly-human {
   from { transform: translateY(52vh) rotate(-6deg) scale(.9); opacity: .4; }
   60% { opacity: 1; }
@@ -23,6 +27,18 @@ body { background: #1b3a1b; margin: 0; }
   60% { opacity: 1; }
   80% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; }
   to { transform: translateY(0) rotate(0deg) scale(1); opacity: 0; }
+}
+@keyframes fly-left {
+  from { transform: translateX(-42vw) rotate(-6deg) scale(.9); opacity: .4; }
+  60% { opacity: 1; }
+  80% { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+  to { transform: translate(0,0) rotate(0deg) scale(1); opacity: 0; }
+}
+@keyframes fly-right {
+  from { transform: translateX(42vw) rotate(6deg) scale(.9); opacity: .4; }
+  60% { opacity: 1; }
+  80% { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+  to { transform: translate(0,0) rotate(0deg) scale(1); opacity: 0; }
 }
 /* Lá bốc từ nọc bay tới góc của người bốc, từng lá một. */
 .flying-draw { position: fixed; left: 50%; top: 46%; margin-left: -36px; margin-top: -50px; z-index: 50; pointer-events: none; filter: drop-shadow(0 12px 16px rgba(0,0,0,.6)); animation-duration: .45s; animation-timing-function: ease-out; animation-fill-mode: forwards; }
@@ -116,5 +132,5 @@ body { background: #1b3a1b; margin: 0; }
 @keyframes take-to-hand { from { transform: translate(0, 0) scale(1); opacity: 1; } to { transform: translate(0, 42vh) scale(0.9); opacity: 0.2; } }
 
 /* La bai dang nhap lo lung giua hai ban tay Adam va Chua. */
-.login-card-float { animation: login-float 4s ease-in-out infinite; box-shadow: 0 24px 50px rgba(0,0,0,.55), 0 8px 20px rgba(0,0,0,.4); }
+.login-card-float { animation: login-float 4s ease-in-out infinite; box-shadow: 0 0 32px rgba(255, 236, 150, .95), 0 0 80px rgba(255, 205, 70, .6), 0 0 140px rgba(255, 180, 0, .35); }
 @keyframes login-float { 0%, 100% { transform: translateY(-8px) rotate(-2deg); } 50% { transform: translateY(8px) rotate(-2deg); } }

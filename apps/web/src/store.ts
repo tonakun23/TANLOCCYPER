@@ -27,7 +27,7 @@ export interface ChatMsg { id: number; from: string; text: string; }
 const BOT_REPLIES = ["Chơi hay đấy!", "Lá này khó đỡ quá!", "Tới lượt bạn rồi kìa.", "Haha, ván này căng!", "Để xem bạn đỡ sao đây.", "Bài mình cũng không đẹp lắm đâu."];
 
 interface GameStore {
-  screen: "login" | "lobby" | "rooms" | "create" | "waiting" | "game"; waitingCode: string | null; waitingCount: number; waitingReady: boolean; waitingMode: "private" | "quick" | "join"; myId: string; onlineMode: boolean; onlineRoom: { code: string; bet: string; maxPlayers: number; hostId: string; state: string; players: { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean }[] } | null; onlineMyLobbyId: string | null; onlineWsStatus: string; onlineError: string | null; googleUser: { name: string; email: string; avatar: string | null } | null; firebaseConfig: Record<string, string> | null; authError: string | null; configLoading: boolean;
+  screen: "login" | "lobby" | "rooms" | "create" | "waiting" | "game"; waitingCode: string | null; waitingCount: number; waitingReady: boolean; waitingMode: "private" | "quick" | "join"; myId: string; onlineMode: boolean; onlineRoom: { code: string; bet: string; maxPlayers: number; hostId: string; state: string; players: { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean }[] } | null; onlineMyLobbyId: string | null; onlineWsStatus: string; onlineError: string | null; publicRooms: { code: string; bet: string; maxPlayers: number; playerCount: number; hostName: string }[]; googleUser: { name: string; email: string; avatar: string | null } | null; firebaseConfig: Record<string, string> | null; authError: string | null; configLoading: boolean;
   // Mã phòng riêng (chơi với bạn): hiện luôn góc phải trong ván, thoát ván là hết.
   roomCode: string | null; createPrivate: boolean;
   playerName: string; playerCount: number; allowTransfer: boolean;
@@ -49,7 +49,7 @@ interface GameStore {
   runBots: () => Promise<void>; addLog: (msg: string) => void;
   sendChat: (text: string) => void; clearNotice: () => void;
   autoLowestAttack: () => void; passAttack: () => void; followWindow: { mode: "take" | "add"; takerId?: string; key: number } | null; resolveTakeFollow: () => void; passFollow: () => void; takeAnimCards: string[] | null; clearTakeAnim: () => void;
-  onlineConnect: (m: Record<string, unknown>) => void; onlineCreateRoom: (bet: string, count: number) => void; onlineJoinRoom: (code: string) => void; onlineReady: (v: boolean) => void; onlineStart: () => void; onlineLeave: () => void; setGoogleUser: (u: { name: string; email: string; avatar: string | null } | null) => void; loadFirebaseConfig: () => Promise<void>; firebaseLogin: () => Promise<void>; firebaseRedirectLogin: () => Promise<void>; googleLogout: () => Promise<void>;
+  onlineConnect: (m: Record<string, unknown>) => void; onlineCreateRoom: (bet: string, count: number, isPublic?: boolean) => void; onlineJoinRoom: (code: string) => void; onlineReady: (v: boolean) => void; onlineStart: () => void; onlineLeave: () => void; loadPublicRooms: () => Promise<void>; setGoogleUser: (u: { name: string; email: string; avatar: string | null } | null) => void; loadFirebaseConfig: () => Promise<void>; firebaseLogin: () => Promise<void>; firebaseRedirectLogin: () => Promise<void>; googleLogout: () => Promise<void>;
 }
 
 // Lá mới xuất hiện trên bàn sau một nước đi (so với trước nước đi).
@@ -67,7 +67,7 @@ function tableIds(game: GameState): Set<string> {
 }
 
 export const useGameStore = create<GameStore>()((set, get) => ({
-  screen: "login", roomCode: null, waitingCode: null, waitingCount: 4, waitingReady: false, waitingMode: "private", myId: HUMAN_ID, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, onlineWsStatus: "disconnected", onlineError: null, googleUser: null, firebaseConfig: null, authError: null, configLoading: true, createPrivate: false, playerName: "Bạn", playerCount: 4, allowTransfer: true,
+  screen: "login", roomCode: null, waitingCode: null, waitingCount: 4, waitingReady: false, waitingMode: "private", myId: HUMAN_ID, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, onlineWsStatus: "disconnected", onlineError: null, publicRooms: [], googleUser: null, firebaseConfig: null, authError: null, configLoading: true, createPrivate: false, playerName: "Bạn", playerCount: 4, allowTransfer: true,
   game: null, selected: null, humanAddPassed: false, botBusy: false,
   notice: null, noticeKey: 0, flying: null, drawFlying: null, drawing: false, chat: [],
   setPlayerName: (v) => set({ playerName: v }),
@@ -136,7 +136,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   sortHand: () => {},
   autoLowestAttack: () => {},
   passAttack: () => {},
-  followWindow: null, resolveTakeFollow: () => {}, passFollow: () => {}, takeAnimCards: null, clearTakeAnim: () => {}, onlineConnect: () => {}, onlineCreateRoom: () => {}, onlineJoinRoom: () => {}, onlineReady: () => {}, onlineStart: () => {}, onlineLeave: () => {}, setGoogleUser: () => {}, loadFirebaseConfig: async () => {}, firebaseLogin: async () => {}, firebaseRedirectLogin: async () => {}, googleLogout: async () => {},
+  followWindow: null, resolveTakeFollow: () => {}, passFollow: () => {}, takeAnimCards: null, clearTakeAnim: () => {}, onlineConnect: () => {}, onlineCreateRoom: () => {}, onlineJoinRoom: () => {}, onlineReady: () => {}, onlineStart: () => {}, onlineLeave: () => {}, loadPublicRooms: async () => {}, setGoogleUser: () => {}, loadFirebaseConfig: async () => {}, firebaseLogin: async () => {}, firebaseRedirectLogin: async () => {}, googleLogout: async () => {},
 }));
 
 // Gán các action sau khi store tạo xong để tránh vòng tham chiếu trong create().
@@ -227,6 +227,8 @@ store.setState({
       if (st.game?.phase !== "DRAWING") void store.getState().runBots();
       return;
     }
+    // Hết nọc giữa chừng: không chờ ai bốc nữa, xả hết lượt bốc rồi vào đợt mới ngay.
+    if (st.game.drawPile.length === 0) { const g = st.game; while (g.phase === "DRAWING") drawStep(g); store.setState({ game: cloneGame(g) }); void store.getState().runBots(); return; }
     // Nếu tới lượt người bốc, dừng lại chờ người bấm nút Bốc bài.
     if (st.game.pendingDraw[0] === HUMAN_ID) return;
     store.setState({ drawing: true });
@@ -242,6 +244,8 @@ store.setState({
       }
     } finally { store.setState({ drawing: false, drawFlying: null }); }
     const g2 = store.getState().game;
+    // Bot vừa bốc hết lá nọc cuối: xả nốt lượt bốc, đừng bắt người bấm Bốc bài khi không còn bài.
+    if (g2?.phase === "DRAWING" && g2.drawPile.length === 0) { while (g2.phase === "DRAWING") drawStep(g2); store.setState({ game: cloneGame(g2) }); }
     if (g2?.phase === "DRAWING" && g2.pendingDraw[0] === HUMAN_ID) return;
     void store.getState().runBots();
   },
@@ -339,8 +343,9 @@ store.setState({
         const myEngineId = String(m.myEngineId);
         const g = viewToGame(view, myEngineId) as unknown as GameState;
         const prev = st.game;
-        const played = prev ? (() => { const before = new Set<string>(); for (const pr of prev.table) { before.add(pr.attack.id); if (pr.defense) before.add(pr.defense.id); } for (const pr of g.table) { if (!before.has(pr.attack.id)) return pr.attack.id; if (pr.defense && !before.has(pr.defense.id)) return pr.defense.id; } return null; })() : null;
-        store.setState({ game: cloneGame(g), myId: myEngineId, onlineMode: true, screen: "game", selected: null, flying: played ? { cardId: played, by: "online", key: Date.now() } : st.flying });
+        // Lá mới xuất hiện + người đánh nó (tấn -> attackerId, đỡ -> defenderId) để bay đúng hướng ghế.
+        const played = prev ? (() => { const before = new Set<string>(); for (const pr of prev.table) { before.add(pr.attack.id); if (pr.defense) before.add(pr.defense.id); } for (const pr of g.table) { if (!before.has(pr.attack.id)) return { cardId: pr.attack.id, by: g.attackerId }; if (pr.defense && !before.has(pr.defense.id)) return { cardId: pr.defense.id, by: g.defenderId }; } return null; })() : null;
+        store.setState({ game: cloneGame(g), myId: myEngineId, onlineMode: true, screen: "game", selected: null, flying: played ? { cardId: played.cardId, by: played.by, key: Date.now() } : st.flying });
         if (played) playCardSound();
       } else if (m.type === "follow") {
         const mode = m.mode === "take" ? "take" : "add";
@@ -359,10 +364,19 @@ store.setState({
       }
     };
   },
-  onlineCreateRoom: (bet: string, count: number) => {
+  onlineCreateRoom: (bet: string, count: number, isPublic = false) => {
     const st = store.getState();
-    store.setState({ onlineMode: true, screen: "waiting", waitingMode: "private", waitingCount: count });
-    (store.getState() as unknown as { onlineConnect: (m: Record<string, unknown>) => void }).onlineConnect({ type: "create", name: st.playerName.trim() || "Bạn", avatar: st.googleUser?.avatar || null, maxPlayers: count, bet, sessionToken: onlineSession() });
+    store.setState({ onlineMode: true, screen: "waiting", waitingMode: isPublic ? "quick" : "private", waitingCount: count });
+    (store.getState() as unknown as { onlineConnect: (m: Record<string, unknown>) => void }).onlineConnect({ type: "create", name: st.playerName.trim() || "Bạn", avatar: st.googleUser?.avatar || null, maxPlayers: count, bet, isPublic, sessionToken: onlineSession() });
+  },
+  // Bảng phòng thật đang mở (chỉ phòng public, đang chờ người): tải lại mỗi khi mở màn CHƠI NGAY.
+  loadPublicRooms: async () => {
+    try {
+      const r = await fetch(`${API_BASE}/rooms`);
+      if (!r.ok) return;
+      const j = await r.json() as { rooms?: { code: string; bet: string; maxPlayers: number; playerCount: number; hostName: string }[] };
+      if (Array.isArray(j.rooms)) store.setState({ publicRooms: j.rooms });
+    } catch { /* lần sau tải lại, bảng cứ hiện khung trống */ }
   },
   onlineJoinRoom: (code: string) => {
     const st = store.getState();

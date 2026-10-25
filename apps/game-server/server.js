@@ -194,7 +194,7 @@ const server = http.createServer(async (req, res) => {
       }
     }
     if (req.method === "GET" && url.pathname === "/") {
-      return send(res, 200, { service: "tanloccyper-game-server", ruleSet: "VN_8_V1", endpoints: ["GET /health", "GET /auth/config", "POST /auth/google", "WS /ws (create/join/ready/start/command/chat)", "POST /auth/firebase", "POST /rooms", "GET /rooms/:id?playerId=", "POST /rooms/:id/commands"] });
+      return send(res, 200, { service: "tanloccyper-game-server", ruleSet: "VN_8_V1", endpoints: ["GET /health", "GET /auth/config", "POST /auth/google", "WS /ws (create/join/ready/start/command/chat)", "POST /auth/firebase", "POST /rooms", "GET /rooms (phong public dang cho)", "GET /rooms/:id?playerId=", "POST /rooms/:id/commands"] });
     }
     if (req.method === "POST" && url.pathname === "/rooms") {
       const body = await readBody(req);
@@ -204,6 +204,11 @@ const server = http.createServer(async (req, res) => {
       const roomId = randomUUID();
       rooms.set(roomId, { game, processor: createCommandProcessor(), memberIds: game.players.map((p) => p.id), createdAt: new Date().toISOString() });
       return send(res, 201, { roomId, players: game.players.map((p) => ({ id: p.id, name: p.name })), attackerId: game.attackerId, defenderId: game.defenderId, trumpSuit: game.trumpSuit, version: game.version });
+    }
+    // Bảng phòng public đang chờ người (màn CHƠI NGAY): chỉ phòng chưa bắt đầu ván.
+    if (req.method === "GET" && url.pathname === "/rooms") {
+      const list = [...lobbies.values()].filter((lb) => lb.isPublic && !lb.game).map((lb) => ({ code: lb.code, bet: lb.bet, maxPlayers: lb.maxPlayers, playerCount: lb.players.length, hostName: lb.players[0]?.name || "Chủ phòng" }));
+      return send(res, 200, { rooms: list });
     }
     const roomMatch = url.pathname.match(/^\/rooms\/([^/]+)$/);
     if (req.method === "GET" && roomMatch) {
@@ -239,7 +244,7 @@ wss.on("connection", (ws) => {
       if (msg.type === "create") {
         const session = msg.sessionToken ? sessions.get(msg.sessionToken) : null;
         const code = makeCode();
-        const lb = { code, bet: msg.bet || "5K", maxPlayers: Math.min(4, Math.max(2, Number(msg.maxPlayers || 4))), hostId: null, players: [], game: null, processor: createCommandProcessor(), pending: null };
+        const lb = { code, bet: msg.bet || "5K", maxPlayers: Math.min(4, Math.max(2, Number(msg.maxPlayers || 4))), isPublic: !!msg.isPublic, hostId: null, players: [], game: null, processor: createCommandProcessor(), pending: null };
         const pl = { id: randomUUID(), token: randomUUID(), name: (session?.name || msg.name || "Bạn").toString().slice(0, 30), avatar: session?.avatar || msg.avatar || null, googleId: session?.googleId || null, ready: false, socket: ws, engineId: null };
         lb.hostId = pl.id; lb.players.push(pl); lobbies.set(code, lb); attach(lb, pl);
         ws.send(JSON.stringify({ type: "joined", playerId: pl.id, token: pl.token, code, isHost: true }));

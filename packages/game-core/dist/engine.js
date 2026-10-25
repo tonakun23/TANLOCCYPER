@@ -229,6 +229,9 @@ export function resolveTake(state, playerId) {
     state.defenderId = nextActiveId(state, newAttackerId);
     state.defenderInitialHandCount = playerById(state, state.defenderId)?.hand.length || 0;
     state.pendingDraw = order.filter((id) => { const p = playerById(state, id); return p && !p.finished && p.hand.length < state.handSize; });
+    // Hết nọc: không chờ bốc nữa, vào thẳng đợt mới.
+    if (!state.drawPile.length)
+        state.pendingDraw = [];
     state.phase = state.pendingDraw.length ? "DRAWING" : "ATTACKING";
     state.version++;
     checkFinished(state);
@@ -261,6 +264,9 @@ export function resolveFinishAttack(state, playerId) {
     state.defenderId = nextActiveId(state, state.attackerId);
     state.defenderInitialHandCount = playerById(state, state.defenderId)?.hand.length || 0;
     state.pendingDraw = order.filter((id) => { const p = playerById(state, id); return p && !p.finished && p.hand.length < state.handSize; });
+    // Hết nọc: không chờ bốc nữa, vào thẳng đợt mới.
+    if (!state.drawPile.length)
+        state.pendingDraw = [];
     state.phase = state.pendingDraw.length ? "DRAWING" : "ATTACKING";
     state.version++;
     checkFinished(state);

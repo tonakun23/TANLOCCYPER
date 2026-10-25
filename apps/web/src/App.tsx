@@ -26,6 +26,13 @@ export default function App() {
   const [googleError, setGoogleError] = useState("");
   const [popupBlocked, setPopupBlocked] = useState(false);
   useEffect(() => { void s.loadFirebaseConfig(); }, []);
+  // Màn CHƠI NGAY: tải bảng phòng thật, làm mới mỗi 5 giây khi đang ở màn này.
+  useEffect(() => {
+    if (s.screen !== "rooms") return;
+    void s.loadPublicRooms();
+    const id = setInterval(() => { void s.loadPublicRooms(); }, 5000);
+    return () => clearInterval(id);
+  }, [s.screen]);
   // Bong bóng chat trên avatar: hiện 6 giây rồi tự ẩn.
   useEffect(() => {
     if (!bubble) return;
@@ -147,7 +154,7 @@ export default function App() {
   const submitCreateRoom = () => {
     const id = 148000 + Math.floor(Math.random() * 899);
     // Chơi với bạn / tạo phòng: KHÔNG bot, tạo phòng thật qua WebSocket, mã phòng hiện giữa bàn chờ.
-    s.onlineCreateRoom(BET_LEVELS[betIdx], createCount);
+    s.onlineCreateRoom(BET_LEVELS[betIdx], createCount, !s.createPrivate);
   };
   const homeTop = (
     <div className="tan-top">
@@ -235,7 +242,7 @@ export default function App() {
       <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
         <div className="tan-rooms-top">
           <div style={{ margin: "0 auto", display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
-            <button className="tan-pill orange" onClick={() => s.onlineCreateRoom("5K", 4)}>CHƠI NGAY</button>
+            <button className="tan-pill orange" onClick={() => s.onlineCreateRoom("5K", 4, true)}>CHƠI NGAY</button>
             <button className="tan-pill green" onClick={() => s.goToCreate(false)}>TẠO PHÒNG</button>
             <button className="tan-pill" style={{ background: "#7c3aed", color: "#fff" }} onClick={startBotGame}>CHƠI VỚI BOT</button>
           </div>
@@ -248,8 +255,26 @@ export default function App() {
             <input className="text-black px-4 py-3 rounded-full flex-1 font-bold" placeholder="Nhập mã phòng 6 số, ví dụ 148123" value={joinCode} onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
             <button className="tan-pill green" disabled={joinCode.length !== 6} style={{ opacity: joinCode.length === 6 ? 1 : 0.5 }} onClick={() => s.onlineJoinRoom(joinCode)}>Vào phòng</button>
           </div>
-          <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fef3c7", margin: "28px 0 8px" }}>Phòng thật đang mở</h2>
-          <p style={{ color: "rgba(255,255,255,.6)", fontSize: 14 }}>Chưa có phòng thật nào đang mở. Đã bỏ danh sách phòng ảo tạo bot trước đây. Tạo phòng mới để bạn bè vào bằng mã phòng, hoặc bấm Chơi với bot để chơi ngay.</p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "28px 0 8px" }}>
+            <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fef3c7", margin: 0 }}>Phòng thật đang mở</h2>
+            <button className="tan-pill" style={{ background: "rgba(255,255,255,.15)", fontSize: 13, padding: "6px 14px" }} onClick={() => void s.loadPublicRooms()}>Làm mới</button>
+          </div>
+          <div style={{ border: "1.5px solid rgba(255,255,255,.25)", borderRadius: 16, overflow: "hidden", background: "rgba(0,0,0,.25)" }}>
+            <div style={{ display: "flex", gap: 8, padding: "10px 14px", fontWeight: 800, fontSize: 13, color: "rgba(255,255,255,.7)", borderBottom: "1px solid rgba(255,255,255,.2)" }}>
+              <span style={{ flex: 1 }}>Mã phòng</span><span style={{ width: 70 }}>Mức điểm</span><span style={{ width: 80 }}>Người chơi</span><span style={{ width: 64 }} />
+            </div>
+            {s.publicRooms.length === 0 ? (
+              <p style={{ color: "rgba(255,255,255,.6)", fontSize: 14, textAlign: "center", padding: "20px 14px", margin: 0 }}>Chưa có phòng nào đang mở. Bấm CHƠI NGAY hoặc TẠO PHÒNG để mở phòng đầu tiên, rồi chờ người khác bấm vào chơi cùng.</p>
+            ) : s.publicRooms.map((r) => (
+              <div key={r.code} style={{ display: "flex", gap: 8, alignItems: "center", padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,.12)" }}>
+                <span style={{ flex: 1, fontWeight: 900 }}>{r.code}<span style={{ display: "block", fontSize: 12, fontWeight: 400, color: "rgba(255,255,255,.6)" }}>Chủ phòng: {r.hostName}</span></span>
+                <span style={{ width: 70, fontWeight: 800, color: "#ffd97a" }}>{r.bet}</span>
+                <span style={{ width: 80 }}>{r.playerCount}/{r.maxPlayers}</span>
+                <button className="tan-pill green" style={{ width: 64, padding: "6px 0", fontSize: 13 }} onClick={() => s.onlineJoinRoom(r.code)}>Vào</button>
+              </div>
+            ))}
+          </div>
+          <p style={{ color: "rgba(255,255,255,.6)", fontSize: 13, marginTop: 10 }}>Vào phòng chỉ cần 1 người: bạn vào phòng chờ trước, người khác bấm Vào từ bảng này (hoặc nhập mã phòng) để đủ người rồi cùng sẵn sàng, đủ 2 người mới bắt đầu được.</p>
         </div>
         <div style={{ flex: 1 }} />
         <p style={{ textAlign: "center", color: "rgba(255,255,255,.6)", fontSize: 13, paddingBottom: 12 }}>Xu trong Tấn chỉ là điểm thưởng, không nạp/rút hay đổi tiền thật.</p>
@@ -317,8 +342,8 @@ export default function App() {
     return (
       <div className="tan-home h-screen w-screen overflow-hidden text-white relative">
         {/* Adam (trai) va Chua cung cac thien than (phai) giay tay ve la bai o giua. */}
-        <img src="/login/adam.png" alt="" className="absolute left-0 bottom-0 pointer-events-none select-none" style={{ height: "min(72vh, 620px)", maxWidth: "52vw", objectFit: "contain", objectPosition: "left bottom", zIndex: 0 }} />
-        <img src="/login/god.png" alt="" className="absolute right-0 bottom-0 pointer-events-none select-none" style={{ height: "min(72vh, 620px)", maxWidth: "52vw", objectFit: "contain", objectPosition: "right bottom", zIndex: 0 }} />
+        <img src="/login/adam.png" alt="" className="absolute left-0 bottom-0 pointer-events-none select-none" style={{ height: "min(88vh, 780px)", maxWidth: "58vw", left: "-14vw", objectFit: "contain", objectPosition: "left bottom", zIndex: 0 }} />
+        <img src="/login/god.png" alt="" className="absolute right-0 bottom-0 pointer-events-none select-none" style={{ height: "min(88vh, 780px)", maxWidth: "58vw", right: "-14vw", objectFit: "contain", objectPosition: "right bottom", zIndex: 0 }} />
         <div className="relative flex flex-col items-center justify-center h-full" style={{ gap: 20, padding: 24, zIndex: 10 }}>
           <div style={{ textAlign: "center", textShadow: "0 2px 12px rgba(0,0,0,.6)" }}>
             <div style={{ fontSize: 46, fontWeight: 900, letterSpacing: 2 }}>TẤN ONLINE</div>
@@ -452,9 +477,22 @@ export default function App() {
           {s.notice}
         </div>
       )}
-      {/* Lá vừa đánh bay từ tay người đánh lên giữa bàn. */}
+      {/* Lá vừa đánh bay từ đúng hướng ghế của người đánh lên giữa bàn. */}
       {s.flying && (
-        <div key={s.flying.key} className={`flying-card ${s.flying.by === myId ? "flying-human" : "flying-bot"}`}>
+        <div key={s.flying.key} className={`flying-card ${(() => {
+          if (s.flying!.by === myId) return "flying-bottom";
+          if (s.onlineMode) {
+            const n = game.players.length;
+            const myIdx = game.players.findIndex((pl) => pl.id === myId);
+            const idx = game.players.findIndex((pl) => pl.id === s.flying!.by);
+            const off = (idx - myIdx + n) % n;
+            if (n === 2) return "flying-top";
+            if (n === 3) return off === 1 ? "flying-right" : "flying-left";
+            return off === 1 ? "flying-right" : off === 2 ? "flying-top" : "flying-left";
+          }
+          const nm = game.players.find((pl) => pl.id === s.flying!.by)?.name;
+          return nm === "Bot 3" ? "flying-right" : nm === "Bot 2" ? "flying-left" : "flying-top";
+        })()}`}>
           <CardView card={parseCard(s.flying.cardId)} />
         </div>
       )}

@@ -176,6 +176,8 @@ export function resolveTake(state: GameState, playerId: string): GameState {
   state.defenderId = nextActiveId(state, newAttackerId);
   state.defenderInitialHandCount = (playerById(state, state.defenderId) as PlayerState)?.hand.length || 0;
   state.pendingDraw = order.filter((id) => { const p = playerById(state, id); return p && !p.finished && p.hand.length < state.handSize; });
+  // Hết nọc: không chờ bốc nữa, vào thẳng đợt mới.
+  if (!state.drawPile.length) state.pendingDraw = [];
   state.phase = state.pendingDraw.length ? "DRAWING" : "ATTACKING"; state.version++; checkFinished(state); return state;
 }
 /** Kết thúc đợt đỡ thành công nhưng CHƯA bốc: chuyển sang phase DRAWING. */
@@ -193,6 +195,8 @@ export function resolveFinishAttack(state: GameState, playerId: string): GameSta
   state.defenderId = nextActiveId(state, state.attackerId);
   state.defenderInitialHandCount = (playerById(state, state.defenderId) as PlayerState)?.hand.length || 0;
   state.pendingDraw = order.filter((id) => { const p = playerById(state, id); return p && !p.finished && p.hand.length < state.handSize; });
+  // Hết nọc: không chờ bốc nữa, vào thẳng đợt mới.
+  if (!state.drawPile.length) state.pendingDraw = [];
   state.phase = state.pendingDraw.length ? "DRAWING" : "ATTACKING"; state.version++; checkFinished(state); return state;
 }
 /** Bốc 1 lá cho người đầu tiên trong pendingDraw. Trả về lá đã bốc (hoặc null nếu hết nọc / hết người cần bốc). Hết lượt bốc thì về ATTACKING. */
