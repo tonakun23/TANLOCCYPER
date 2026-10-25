@@ -4,28 +4,48 @@ import { SUIT_SYMBOL, RANK_LABEL, SUIT_NAME } from "../../../../packages/game-co
 import type { Card, GameState } from "../../../../packages/game-core/src/engine";
 import { HUMAN_ID } from "../store";
 
-function drawCard(container: PIXI.Container, x: number, y: number, card: Card | null, back = false) {
+// Ban Durak: nen xanh la, ban oval xanh dam, bai dung anh that tu /durak/cards/.
+// La 2-5 la ban ve lai tu mau la 6 (xem CardView.tsx).
+function cardFile(card: Card): string {
+  const r = card.rank === 14 ? "A" : card.rank === 11 ? "J" : card.rank === 12 ? "Q" : card.rank === 13 ? "K" : String(card.rank);
+  return `${r}${card.suit}.png`;
+}
+
+let textureCache: Map<string, PIXI.Texture> | null = null;
+async function loadTextures() {
+  if (textureCache) return textureCache;
+  const map = new Map<string, PIXI.Texture>();
+  const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+  const suits = ["S", "C", "H", "D"];
+  const files = ["back.png", ...suits.flatMap((s) => ranks.map((r) => `${r}${s}.png`))];
+  await Promise.all(files.map(async (f) => {
+    try {
+      const tex = await PIXI.Assets.load(`/durak/cards/${f}`);
+      map.set(f, tex);
+    } catch {
+      // fallback: ve text
+    }
+  }));
+  textureCache = map;
+  return map;
+}
+
+function drawCard(container: PIXI.Container, x: number, y: number, card: Card | null, back = false, textures?: Map<string, PIXI.Texture>) {
+  const file = back ? "back.png" : card ? cardFile(card) : "back.png";
+  const tex = textures?.get(file);
+  if (tex) {
+    const sp = new PIXI.Sprite(tex);
+    sp.x = x; sp.y = y; sp.width = 64; sp.height = 88;
+    container.addChild(sp);
+    return;
+  }
+  // Fallback text neu anh chua load duoc
   const g = new PIXI.Graphics();
   if (back) {
-    // Mặt sau theo bộ standard-deck: nền xám nhạt với lưới thoi đậm, gần với back.png gốc.
     g.rect(x, y, 64, 88);
-    g.fill(0xffffff);
-    g.stroke({ color: 0x111111, width: 2 });
+    g.fill(0x8b0000);
+    g.stroke({ color: 0xfacc15, width: 2 });
     container.addChild(g);
-    const inner = new PIXI.Graphics();
-    inner.rect(x + 3, y + 3, 58, 82);
-    inner.fill(0xe5e5e5);
-    inner.stroke({ color: 0xffffff, width: 1 });
-    container.addChild(inner);
-    const grid = new PIXI.Graphics();
-    for (let d = -88; d <= 152; d += 8) {
-      grid.moveTo(x + 3 + d, y + 3);
-      grid.lineTo(x + 3 + d + 82, y + 85);
-      grid.moveTo(x + 3 + d + 82, y + 3);
-      grid.lineTo(x + 3 + d, y + 85);
-    }
-    grid.stroke({ color: 0x555555, width: 1 });
-    container.addChild(grid);
     return;
   }
   g.rect(x, y, 64, 88);
@@ -42,11 +62,11 @@ function drawCard(container: PIXI.Container, x: number, y: number, card: Card | 
   }
 }
 
-function drawTable(app: PIXI.Application, game: GameState) {
+function drawTable(app: PIXI.Application, game: GameState, textures?: Map<string, PIXI.Texture>) {
   app.stage.removeChildren();
   const table = new PIXI.Graphics();
   table.ellipse(430, 180, 390, 150);
-  table.fill(0x991b1b);
+  table.fill(0x2e7d32);
   table.stroke({ color: 0xfacc15, width: 4 });
   app.stage.addChild(table);
   const info = new PIXI.Text({ text: `Chủ: ${SUIT_NAME[game.trumpSuit]} ${SUIT_SYMBOL[game.trumpSuit]}  •  Nọc: ${game.drawPile.length} lá  •  Bỏ: ${game.discardPile.length}`, style: { fontSize: 18, fill: 0xfde68a } });
@@ -57,7 +77,7 @@ function drawTable(app: PIXI.Application, game: GameState) {
     const baseX = 120 + i * 220;
     const name = new PIXI.Text({ text: `${p.name} (${p.hand.length} lá)`, style: { fontSize: 16, fill: 0xffffff } });
     name.x = baseX; name.y = 50; app.stage.addChild(name);
-    p.hand.slice(0, 5).forEach((_, j) => drawCard(app.stage, baseX + j * 18, 75, null, true));
+    p.hand.slice(0, 5).forEach((_, j) => drawCard(app.stage, baseX + j * 18, 75, null, true, textures));
   });
   // Bài trên bàn ở giữa
   if (!game.table.length) {
@@ -67,8 +87,8 @@ function drawTable(app: PIXI.Application, game: GameState) {
     const totalW = game.table.length * 90;
     game.table.forEach((pair, i) => {
       const x = 430 - totalW / 2 + i * 90;
-      drawCard(app.stage, x, 150, pair.attack);
-      if (pair.defense) drawCard(app.stage, x + 20, 168, pair.defense);
+      drawCard(app.stage, x, 150, pair.attack, false, textures);
+      if (pair.defense) drawCard(app.stage, x + 20, 168, pair.defense, false, textures);
       else {
         const wait = new PIXI.Text({ text: "chờ đỡ…", style: { fontSize: 14, fill: 0xfde68a } });
         wait.x = x + 20; wait.y = 168; app.stage.addChild(wait);
@@ -80,20 +100,24 @@ function drawTable(app: PIXI.Application, game: GameState) {
 export function TableCanvas({ game }: { game: GameState }) {
   const ref = useRef<HTMLDivElement>(null);
   const appRef = useRef<PIXI.Application | null>(null);
+  const texturesRef = useRef<Map<string, PIXI.Texture> | undefined>(undefined);
   useEffect(() => {
     let cancelled = false;
     let app: PIXI.Application | null = null;
     (async () => {
       app = new PIXI.Application();
-      await app.init({ width: 860, height: 360, background: "#450a0a", antialias: true });
+      await app.init({ width: 860, height: 360, background: "#1b3a1b", antialias: true });
       if (cancelled) { app.destroy(true); return; }
       appRef.current = app;
       ref.current?.appendChild(app.canvas);
-      drawTable(app, game);
+      const textures = await loadTextures();
+      if (cancelled) return;
+      texturesRef.current = textures;
+      drawTable(app, game, textures);
     })();
     return () => { cancelled = true; app?.destroy(true); appRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useEffect(() => { if (appRef.current) drawTable(appRef.current, game); }, [game]);
+  useEffect(() => { if (appRef.current) drawTable(appRef.current, game, texturesRef.current); }, [game]);
   return <div ref={ref} className="flex justify-center overflow-x-auto" />;
 }

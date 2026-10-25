@@ -28,9 +28,10 @@ export default function App() {
     return () => clearInterval(id);
   }, [myTurn, game, iAmDefender, me, s]);
 
+  const trumpMarker: Record<string, string> = { S: "spades", C: "clubs", H: "hearts", D: "diamonds" };
   if (s.screen === "lobby" || !game) {
     return (
-      <div className="min-h-screen bg-[#2a0505] text-white p-6">
+      <div className="min-h-screen text-white p-6" style={{ backgroundImage: "url(/durak/main_bg.png)", backgroundSize: "cover", backgroundPosition: "center" }}>
         <header className="mb-6"><h1 className="text-3xl font-bold">♠ TẤN ONLINE <span className="text-yellow-400 text-base">· TANLOCCYPER</span></h1>
         <p className="text-red-200">React + TypeScript + Vite + Tailwind + PixiJS + Zustand + PWA · Luật VN-8 · 2–4 người · Xu chỉ là điểm thưởng, không tiền thật</p></header>
         <section className="max-w-xl mx-auto bg-red-900 border border-yellow-400 rounded-2xl p-6 space-y-4">
@@ -63,7 +64,7 @@ export default function App() {
           <button className="w-10 h-10 rounded-full bg-red-900 border border-white/30 text-xl" title="Về sảnh" onClick={s.backToLobby}>×</button>
           <span>{game.phase === "FINISHED" ? "Ván đã kết thúc" : `${game.players.find((p) => p.id === game.attackerId)?.name} tấn · ${game.players.find((p) => p.id === game.defenderId)?.name} đỡ`}</span>
           {myTurn && <span>⏱ {seconds}s</span>}
-          <span>Chủ: {SUIT_NAME[game.trumpSuit]} {SUIT_SYMBOL[game.trumpSuit]}</span>
+          <span className="flex items-center gap-1">Chủ: {SUIT_NAME[game.trumpSuit]} <img src={`/durak/ui/trump_marker_${trumpMarker[game.trumpSuit]}.png`} alt={SUIT_NAME[game.trumpSuit]} className="w-6 h-6" /></span>
           <span>Nọc: {game.drawPile.length} lá</span>
         </span>
         <span className="flex gap-2">
@@ -73,9 +74,10 @@ export default function App() {
       </div>
       <TableCanvas game={game} />
       <div className="flex gap-3 justify-center my-3 flex-wrap">
-        {game.players.filter((p) => p.id !== HUMAN_ID).map((p) => (
-          <div key={p.id} className={`bg-black/40 px-4 py-2 rounded-xl ${p.id === game.attackerId || p.id === game.defenderId ? "outline outline-yellow-400" : ""}`}>
-            {p.name} {p.id === game.attackerId ? "⚔️ tấn" : ""} {p.id === game.defenderId ? "🛡️ đỡ" : ""} {p.finished ? "✅ xong" : ""} · {p.hand.length} lá
+        {game.players.filter((p) => p.id !== HUMAN_ID).map((p, idx) => (
+          <div key={p.id} className={`flex items-center gap-2 bg-black/40 px-4 py-2 rounded-xl ${p.id === game.attackerId || p.id === game.defenderId ? "outline outline-yellow-400" : ""}`}>
+            <img src={`/durak/ui/avatar_${(idx % 3) + 1}.png`} alt={p.name} className="w-10 h-10 rounded-full" />
+            <span>{p.name} {p.id === game.attackerId ? "⚔️ tấn" : ""} {p.id === game.defenderId ? "🛡️ đỡ" : ""} {p.finished ? "✅ xong" : ""} · {p.hand.length} lá</span>
           </div>
         ))}
       </div>
@@ -99,6 +101,7 @@ export default function App() {
       </div>
       {game.phase === "FINISHED" && (
         <div className="max-w-xl mx-auto bg-red-900 border border-yellow-400 rounded-2xl p-6 text-center">
+          <img src={game.loserId === HUMAN_ID ? "/durak/ui/you_lose.png" : "/durak/ui/you_won.png"} alt="Kết quả" className="w-48 mx-auto mb-3" />
           <h2 className="text-xl font-bold">Kết quả</h2>
           <p>Người thua: <b>{game.players.find((p) => p.id === game.loserId)?.name}</b></p>
           <p>Thứ tự hoàn thành: {game.finishOrder.map((id) => game.players.find((p) => p.id === id)?.name).join(" → ") || "—"}</p>
