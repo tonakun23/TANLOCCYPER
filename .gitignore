@@ -2,3 +2,5 @@ node_modules/
 .DS_Store
 .env
 *.log
+apps/web/dist/
+apps/web/node_modules/

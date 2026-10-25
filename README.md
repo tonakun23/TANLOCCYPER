@@ -12,6 +12,8 @@ chơi trên Web / Mobile Browser, không cần cài đặt.
 Bản này chơi **offline với bot** để kiểm luật trước khi làm server online.
 Đó là Sprint 1 + bàn chơi thử, chưa phải phòng online nhiều người thật.
 
+**Frontend React (25/10/2026, theo yêu cầu công nghệ của Tony):** `apps/web/` nay là app React + TypeScript + Vite + Tailwind CSS + PixiJS (render bàn) + Zustand (state) + PWA (manifest + service worker), đã build pass (`tsc -b && vite build`, 759 modules). Bàn vanilla cũ chuyển sang `apps/web-legacy/` để tham khảo, không phát triển tiếp. Chạy React app: `cd apps/web && npm install && npm run dev` (port 5173) hoặc `npm run build && npm run preview`.
+
 **Sprint 1 đợt 2 (25/10/2026):** game-core đã chuyển sang TypeScript strict
 (`packages/game-core/src/*.ts`, `tsc` pass, `dist/` đã build), thêm server
 adapter (`server.ts`: actionId idempotency, expectedVersion, VAL-02/03/09/10)
