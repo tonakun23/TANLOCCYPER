@@ -1,11 +1,11 @@
 import { create } from "zustand";
-import { createGame, attack, defend, transfer, take, finishAttack, canAttackCard, canBeat, parseCard, cardLabel } from "../../../packages/game-core/src/engine";
+import { createGame, attack, defend, transfer, resolveTake, resolveFinishAttack, drawStep, canAttackCard, canBeat, parseCard, cardLabel } from "../../../packages/game-core/src/engine";
 import type { GameState } from "../../../packages/game-core/src/engine";
 import { botDefendStep, botAttackStep, botAdderStep, lowestCard } from "./game/bot";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 function cloneGame(g: GameState): GameState {
-  return { ...g, players: g.players.map((p) => ({ ...p, hand: [...p.hand] })), drawPile: [...g.drawPile], discardPile: [...g.discardPile], table: g.table.map((x) => ({ ...x })) };
+  return { ...g, players: g.players.map((p) => ({ ...p, hand: [...p.hand] })), drawPile: [...g.drawPile], discardPile: [...g.discardPile], table: g.table.map((x) => ({ ...x })), pendingDraw: [...(g.pendingDraw || [])] };
 }
 export const HUMAN_ID = "player_0";
 
@@ -24,12 +24,15 @@ interface GameStore {
   notice: string | null; noticeKey: number;
   // Lá đang bay lên bàn (hiệu ứng), key đổi mỗi lần đánh để animation chạy lại.
   flying: FlyingCard | null;
+  // Lá đang bốc từ nọc: bay từ giữa bàn tới góc của người bốc, từng lá một.
+  drawFlying: { cardId: string; toId: string; key: number } | null; drawing: boolean;
   // Chat chỉ tồn tại trong ván: chỉ ở bộ nhớ, không lưu DB, không localStorage.
   chat: ChatMsg[];
   setPlayerName: (v: string) => void; setPlayerCount: (v: number) => void; setAllowTransfer: (v: boolean) => void;
   startGame: () => void; backToLobby: () => void; goToRooms: () => void; goToCreate: (isPrivate: boolean) => void; setRoomCode: (code: string | null) => void; setSelected: (v: string | null) => void;
   playCard: (cardId: string) => void; defendPair: (attackId: string) => void;
   takeCards: () => void; finishAttackAction: () => void; transferCard: () => void; passAdd: () => void;
+  drawCards: () => Promise<void>; runDrawPhase: () => Promise<void>;
   runBots: () => Promise<void>; addLog: (msg: string) => void;
   sendChat: (text: string) => void; clearNotice: () => void;
   autoLowestAttack: () => void;
@@ -52,7 +55,7 @@ function tableIds(game: GameState): Set<string> {
 export const useGameStore = create<GameStore>()((set, get) => ({
   screen: "lobby", roomCode: null, createPrivate: false, playerName: "Bạn", playerCount: 4, allowTransfer: true,
   game: null, selected: null, humanAddPassed: false, botBusy: false,
-  notice: null, noticeKey: 0, flying: null, chat: [],
+  notice: null, noticeKey: 0, flying: null, drawFlying: null, drawing: false, chat: [],
   setPlayerName: (v) => set({ playerName: v }),
   setPlayerCount: (v) => set({ playerCount: v }),
   setAllowTransfer: (v) => set({ allowTransfer: v }),
@@ -93,6 +96,8 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   transferCard: () => {},
   passAdd: () => {},
   runBots: async () => {},
+  drawCards: async () => {},
+  runDrawPhase: async () => {},
   autoLowestAttack: () => {},
 }));
 
@@ -124,11 +129,52 @@ store.setState({
   },
   takeCards: () => {
     const { game } = store.getState(); if (!game) return;
-    try { take(game, HUMAN_ID); store.setState({ game: cloneGame(game), selected: null }); store.getState().addLog("Bạn nhận cả bàn."); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
+    try { resolveTake(game, HUMAN_ID); store.setState({ game: cloneGame(game), selected: null }); store.getState().addLog("Bạn lên bài, nhận cả bàn."); void store.getState().runDrawPhase(); } catch (e) { alert((e as Error).message); }
   },
   finishAttackAction: () => {
     const { game } = store.getState(); if (!game) return;
-    try { finishAttack(game, HUMAN_ID); store.setState({ game: cloneGame(game) }); store.getState().addLog("Bạn kết thúc đợt."); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
+    try { resolveFinishAttack(game, HUMAN_ID); store.setState({ game: cloneGame(game) }); store.getState().addLog("Bạn kết thúc đợt."); void store.getState().runDrawPhase(); } catch (e) { alert((e as Error).message); }
+  },
+  // Bốc bài: người chơi bấm nút, bốc từng lá (hiệu ứng bay từ nọc) cho đủ 8 lá,
+  // rồi tới lượt bot bốc, xong mới vào đợt mới. Không tự bốc ầm ầm nữa.
+  drawCards: async () => {
+    const st = store.getState(); if (!st.game || st.game.phase !== "DRAWING" || st.drawing) return;
+    store.setState({ drawing: true });
+    try {
+      while (true) {
+        const g = store.getState().game; if (!g || g.phase !== "DRAWING") break;
+        const nextId = g.pendingDraw[0]; if (!nextId) break;
+        if (nextId !== HUMAN_ID) break; // tới bot, để runDrawPhase lo
+        const card = drawStep(g);
+        if (!card) { store.setState({ game: cloneGame(g) }); break; }
+        store.setState({ game: cloneGame(g), drawFlying: { cardId: card.id, toId: HUMAN_ID, key: Date.now() } });
+        await delay(450);
+      }
+    } finally { store.setState({ drawing: false, drawFlying: null }); }
+    void store.getState().runDrawPhase();
+  },
+  runDrawPhase: async () => {
+    const st = store.getState(); if (!st.game || st.game.phase !== "DRAWING" || st.drawing) {
+      if (st.game?.phase !== "DRAWING") void store.getState().runBots();
+      return;
+    }
+    // Nếu tới lượt người bốc, dừng lại chờ người bấm nút Bốc bài.
+    if (st.game.pendingDraw[0] === HUMAN_ID) return;
+    store.setState({ drawing: true });
+    try {
+      while (true) {
+        const g = store.getState().game; if (!g || g.phase !== "DRAWING") break;
+        const nextId = g.pendingDraw[0]; if (!nextId) break;
+        if (nextId === HUMAN_ID) break;
+        const card = drawStep(g);
+        if (!card) { store.setState({ game: cloneGame(g) }); break; }
+        store.setState({ game: cloneGame(g), drawFlying: { cardId: card.id, toId: nextId, key: Date.now() } });
+        await delay(450);
+      }
+    } finally { store.setState({ drawing: false, drawFlying: null }); }
+    const g2 = store.getState().game;
+    if (g2?.phase === "DRAWING" && g2.pendingDraw[0] === HUMAN_ID) return;
+    void store.getState().runBots();
   },
   transferCard: () => {
     const { game, selected } = store.getState(); if (!game || !selected) return;
@@ -145,13 +191,16 @@ store.setState({
   },
   runBots: async () => {
     const s = store.getState(); if (s.botBusy || !s.game || s.game.phase === "FINISHED") return;
+    if (s.game.phase === "DRAWING") { void store.getState().runDrawPhase(); return; }
     store.setState({ botBusy: true });
     try {
       let guard = 0;
       while (guard++ < 100) {
         const game = store.getState().game; if (!game || game.phase === "FINISHED") break;
+        if (game.phase === "DRAWING") { void store.getState().runDrawPhase(); break; }
         await delay(700);
         const g = store.getState().game; if (!g || g.phase === "FINISHED") break;
+        if (g.phase === "DRAWING") { void store.getState().runDrawPhase(); break; }
         const defender = g.players.find((p) => p.id === g.defenderId); const attacker = g.players.find((p) => p.id === g.attackerId);
         if (!defender || !attacker) break;
         // Chạy 1 nước bot, đồng thời bắt lá vừa đánh để làm hiệu ứng bay.

@@ -38,6 +38,7 @@ export interface GameState {
     finishOrder: string[];
     loserId: string | null;
     result: GameResult | null;
+    pendingDraw: string[];
 }
 export interface GameOptions {
     playerCount?: number;
@@ -69,6 +70,14 @@ export declare function canAttackCard(state: GameState, playerId: string, card: 
 export declare function attack(state: GameState, playerId: string, cardIdStr: string): GameState;
 export declare function defend(state: GameState, playerId: string, attackCardId: string, defenseCardId: string): GameState;
 export declare function transfer(state: GameState, playerId: string, cardIdStr: string): GameState;
+/** Lên bài (nhận cả bàn) nhưng CHƯA bốc: chuyển sang phase DRAWING, chờ bốc từng lá. */
+export declare function resolveTake(state: GameState, playerId: string): GameState;
+/** Kết thúc đợt đỡ thành công nhưng CHƯA bốc: chuyển sang phase DRAWING. */
+export declare function resolveFinishAttack(state: GameState, playerId: string): GameState;
+/** Bốc 1 lá cho người đầu tiên trong pendingDraw. Trả về lá đã bốc (hoặc null nếu hết nọc / hết người cần bốc). Hết lượt bốc thì về ATTACKING. */
+export declare function drawStep(state: GameState): Card | null;
+/** Tương thích cũ (server dùng): lên bài + bốc hết ngay. */
 export declare function take(state: GameState, playerId: string): GameState;
+/** Tương thích cũ (server dùng): kết thúc đợt + bốc hết ngay. */
 export declare function finishAttack(state: GameState, playerId: string): GameState;
 export declare function publicView(state: GameState, viewerId: string): Record<string, unknown>;

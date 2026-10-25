@@ -77,8 +77,8 @@ function drawTable(app: PIXI.Application, game: GameState, textures?: Map<string
   // Đối thủ KHÔNG vẽ ở đây nữa: App vẽ dải avatar + bài úp cho từng người,
   // để avatar nằm trái, thẳng hàng với đúng bộ bài của người đó + số lá.
   void w; void textures;
-  // Nọc ở giữa bàn, bên trái: lá chủ ngửa ở dưới, chồng bài úp đè lên trên.
-  const pileX = Math.max(12, cx - rx - 92), pileY = cy - 44;
+  // Nọc ở GIỮA bàn (trong oval, phía trái giữa): lá chủ ngửa ở dưới, chồng bài úp đè lên trên.
+  const pileX = cx - rx + 16, pileY = cy - 44;
   if (game.drawPile.length > 0) {
     const trump = game.drawPile.find((c) => c.id === game.trumpCardId) || game.drawPile[game.drawPile.length - 1];
     drawCard(app.stage, pileX, pileY, trump, false, textures);
@@ -99,7 +99,7 @@ function drawTable(app: PIXI.Application, game: GameState, textures?: Map<string
   } else {
     const totalW = game.table.length * 90;
     game.table.forEach((pair, i) => {
-      const x = cx - totalW / 2 + i * 90;
+      const x = cx + 50 - totalW / 2 + i * 90;
       drawCard(app.stage, x, cy - 30, pair.attack, false, textures);
       if (pair.defense) drawCard(app.stage, x + 20, cy - 12, pair.defense, false, textures);
       else {

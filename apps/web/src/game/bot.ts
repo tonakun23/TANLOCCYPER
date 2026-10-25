@@ -1,4 +1,4 @@
-import { canAttackCard, canBeat, defend, attack, finishAttack, take, transfer, cardLabel, parseCard } from "../../../../packages/game-core/src/engine";
+import { canAttackCard, canBeat, defend, attack, resolveFinishAttack, resolveTake, transfer, cardLabel, parseCard } from "../../../../packages/game-core/src/engine";
 import type { Card, GameState, PlayerState } from "../../../../packages/game-core/src/engine";
 
 export function lowestCard(cards: Card[], trump: string): Card {
@@ -22,7 +22,7 @@ export function botDefendStep(state: GameState, bot: PlayerState): string {
     }
   }
   const beating = bot.hand.filter((c) => canBeat(pair.attack, c, state.trumpSuit));
-  if (!beating.length) { take(state, bot.id); return `${bot.name} không đỡ được, nhận cả bàn.`; }
+  if (!beating.length) { resolveTake(state, bot.id); return `${bot.name} không đỡ được, lên bài, nhận cả bàn.`; }
   const card = lowestCard(beating, state.trumpSuit);
   defend(state, bot.id, pair.attack.id, card.id);
   return `${bot.name} đỡ ${cardLabel(pair.attack)} bằng ${cardLabel(card)}.`;
@@ -35,7 +35,7 @@ export function botAttackStep(state: GameState, bot: PlayerState): string {
   if (allDefended(state)) {
     const addable = bot.hand.filter((c) => canAttackCard(state, bot.id, c));
     if (addable.length) { const card = lowestCard(addable, state.trumpSuit); attack(state, bot.id, card.id); return `${bot.name} thêm ${cardLabel(card)}.`; }
-    finishAttack(state, bot.id); return `${bot.name} kết thúc đợt.`;
+    resolveFinishAttack(state, bot.id); return `${bot.name} kết thúc đợt.`;
   }
   return "";
 }

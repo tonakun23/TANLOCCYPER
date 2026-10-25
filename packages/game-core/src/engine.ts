@@ -13,6 +13,10 @@ export interface GameState {
   attackerId: string; defenderId: string; defenderInitialHandCount: number;
   maxAttackCards: number; handSize: number; allowTransfer: boolean;
   finishOrder: string[]; loserId: string | null; result: GameResult | null;
+  // Giai đoạn bốc bài (DRAWING): danh sách người chơi còn cần bốc, theo đúng
+  // thứ tự bốc (tấn chính -> người thêm -> người đỡ cuối, hoặc khi lên bài
+  // thì tấn/adders, người lên bài không bốc). Bốc từng lá, đủ 8 lá thì thôi.
+  pendingDraw: string[];
 }
 export interface GameOptions {
   playerCount?: number; playerNames?: string[]; allowTransfer?: boolean;
@@ -108,6 +112,7 @@ export function createGame(opts: GameOptions = {}): GameState {
     trumpSuit: trumpCard.suit, trumpCardId: trumpCard.id, attackerId: firstAttacker.id, defenderId: "",
     defenderInitialHandCount: 0, maxAttackCards: opts.maxAttackCards ?? 6, handSize,
     allowTransfer: opts.allowTransfer ?? true, finishOrder: [], loserId: null, result: null,
+    pendingDraw: [],
   };
   state.defenderId = nextActiveId(state, firstAttacker.id);
   state.defenderInitialHandCount = (playerById(state, state.defenderId) as PlayerState).hand.length;
@@ -158,7 +163,8 @@ export function transfer(state: GameState, playerId: string, cardIdStr: string):
   const card = p.hand.splice(idx, 1)[0]; state.table.push({ attack: card, defense: null });
   state.defenderId = newDefenderId; state.defenderInitialHandCount = newDefender.hand.length; state.version++; return state;
 }
-export function take(state: GameState, playerId: string): GameState {
+/** Lên bài (nhận cả bàn) nhưng CHƯA bốc: chuyển sang phase DRAWING, chờ bốc từng lá. */
+export function resolveTake(state: GameState, playerId: string): GameState {
   if (playerId !== state.defenderId) throw err("NOT_YOUR_TURN", "Không phải lượt đỡ của bạn");
   if (state.table.length === 0) throw err("VALIDATION_ERROR", "Không có bài trên bàn để nhận");
   const defender = playerById(state, playerId) as PlayerState;
@@ -166,13 +172,14 @@ export function take(state: GameState, playerId: string): GameState {
   state.table = [];
   const order: string[] = []; const seatOrder = state.players.map((p) => p.id); const start = seatOrder.indexOf(state.attackerId);
   for (let i = 0; i < seatOrder.length; i++) { const id = seatOrder[(start + i) % seatOrder.length]; if (id !== playerId) order.push(id); }
-  drawUp(state, order);
   const newAttackerId = nextActiveId(state, playerId); state.attackerId = newAttackerId;
   state.defenderId = nextActiveId(state, newAttackerId);
   state.defenderInitialHandCount = (playerById(state, state.defenderId) as PlayerState)?.hand.length || 0;
-  state.phase = "ATTACKING"; state.version++; checkFinished(state); return state;
+  state.pendingDraw = order.filter((id) => { const p = playerById(state, id); return p && !p.finished && p.hand.length < state.handSize; });
+  state.phase = state.pendingDraw.length ? "DRAWING" : "ATTACKING"; state.version++; checkFinished(state); return state;
 }
-export function finishAttack(state: GameState, playerId: string): GameState {
+/** Kết thúc đợt đỡ thành công nhưng CHƯA bốc: chuyển sang phase DRAWING. */
+export function resolveFinishAttack(state: GameState, playerId: string): GameState {
   if (playerId !== state.attackerId) throw err("NOT_YOUR_TURN", "Chỉ người tấn chính mới kết thúc đợt");
   if (state.table.length === 0) throw err("VALIDATION_ERROR", "Chưa có bài trên bàn");
   if (state.table.some((x) => !x.defense)) throw err("INVALID_ATTACK", "Còn lá chưa được đỡ, chưa kết thúc được");
@@ -180,12 +187,40 @@ export function finishAttack(state: GameState, playerId: string): GameState {
   state.table = [];
   const order: string[] = []; const seatOrder = state.players.map((p) => p.id); const start = seatOrder.indexOf(state.attackerId);
   for (let i = 0; i < seatOrder.length; i++) { const id = seatOrder[(start + i) % seatOrder.length]; if (id !== state.defenderId) order.push(id); }
-  order.push(state.defenderId); drawUp(state, order);
+  order.push(state.defenderId);
   const oldDefenderId = state.defenderId; state.attackerId = oldDefenderId;
   if ((playerById(state, state.attackerId) as PlayerState)?.finished) state.attackerId = nextActiveId(state, state.attackerId);
   state.defenderId = nextActiveId(state, state.attackerId);
   state.defenderInitialHandCount = (playerById(state, state.defenderId) as PlayerState)?.hand.length || 0;
-  state.phase = "ATTACKING"; state.version++; checkFinished(state); return state;
+  state.pendingDraw = order.filter((id) => { const p = playerById(state, id); return p && !p.finished && p.hand.length < state.handSize; });
+  state.phase = state.pendingDraw.length ? "DRAWING" : "ATTACKING"; state.version++; checkFinished(state); return state;
+}
+/** Bốc 1 lá cho người đầu tiên trong pendingDraw. Trả về lá đã bốc (hoặc null nếu hết nọc / hết người cần bốc). Hết lượt bốc thì về ATTACKING. */
+export function drawStep(state: GameState): Card | null {
+  if (state.phase !== "DRAWING") return null;
+  while (state.pendingDraw.length) {
+    const id = state.pendingDraw[0];
+    const p = playerById(state, id);
+    if (!p || p.finished || p.hand.length >= state.handSize || state.drawPile.length === 0) { state.pendingDraw.shift(); continue; }
+    const card = state.drawPile.shift() as Card;
+    p.hand.push(card); state.version++;
+    if (p.hand.length >= state.handSize) state.pendingDraw.shift();
+    if (!state.pendingDraw.length) { state.phase = "ATTACKING"; checkFinished(state); }
+    return card;
+  }
+  state.phase = "ATTACKING"; checkFinished(state); return null;
+}
+/** Tương thích cũ (server dùng): lên bài + bốc hết ngay. */
+export function take(state: GameState, playerId: string): GameState {
+  resolveTake(state, playerId);
+  while (state.phase === "DRAWING") if (!drawStep(state)) break;
+  return state;
+}
+/** Tương thích cũ (server dùng): kết thúc đợt + bốc hết ngay. */
+export function finishAttack(state: GameState, playerId: string): GameState {
+  resolveFinishAttack(state, playerId);
+  while (state.phase === "DRAWING") if (!drawStep(state)) break;
+  return state;
 }
 export function publicView(state: GameState, viewerId: string): Record<string, unknown> {
   return {
@@ -193,6 +228,7 @@ export function publicView(state: GameState, viewerId: string): Record<string, u
     attackerId: state.attackerId, defenderId: state.defenderId,
     trumpSuit: state.trumpSuit, trumpCardId: state.trumpCardId,
     drawPileCount: state.drawPile.length, discardPileCount: state.discardPile.length,
+    pendingDraw: [...state.pendingDraw],
     table: state.table.map((x) => ({ attack: x.attack.id, defense: x.defense ? x.defense.id : null })),
     players: state.players.map((p) => ({ id: p.id, name: p.name, cardCount: p.hand.length, finished: p.finished })),
     myHand: ((playerById(state, viewerId)?.hand) || []).map((c) => c.id),

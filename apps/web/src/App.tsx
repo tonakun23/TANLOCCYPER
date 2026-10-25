@@ -270,7 +270,9 @@ export default function App() {
 
   let hint = "Đang chờ bot đánh…";
   if (game.phase === "FINISHED") hint = game.loserId === HUMAN_ID ? "Bạn là người thua ván này." : `${game.players.find((p) => p.id === game.loserId)?.name} thua ván này.`;
-  else if (iAmDefender && undefended.length) hint = "Tới lượt bạn đỡ: bấm lá bài của bạn để đỡ, hoặc bấm Nhận bài / Chuyển tấn.";
+  else if (iAmDefender && undefended.length) hint = "Tới lượt bạn đỡ: bấm lá bài để đỡ, hoặc bấm Lên bài bất cứ lúc nào (kể cả khi đỡ được) / Chuyển tấn.";
+  else if (game.phase === "DRAWING" && game.pendingDraw[0] === HUMAN_ID) hint = "Tới lượt bạn bốc bài: bấm Bốc bài để bốc từng lá cho đủ 8 lá.";
+  else if (game.phase === "DRAWING") hint = "Đang bốc bài: chờ người khác bốc đủ 8 lá…";
   else if (iAmAttacker && game.table.length === 0) hint = "Tới lượt bạn tấn: bấm 1 lá bài để đánh ra.";
   else if (iAmAttacker && allDefended) hint = "Bạn có thể thêm bài cùng hạng, hoặc bấm Kết thúc đợt.";
   else if (!iAmDefender && game.table.length > 0) hint = "Bạn có thể thêm bài cùng hạng, hoặc bấm Không thêm nữa.";
@@ -279,7 +281,7 @@ export default function App() {
     <div className="h-screen w-screen overflow-hidden bg-[#1b3a1b] text-white flex flex-col relative">
       <div className="flex flex-wrap gap-3 bg-black/50 px-3 py-2 font-semibold items-center justify-between shrink-0">
         <span className="flex items-center gap-3">
-          <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 text-xl" title="Về sảnh" onClick={s.backToLobby}>×</button>
+          <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 flex items-center justify-center" title="Về sảnh" onClick={s.backToLobby}><X size={18} /></button>
           <span>{game.phase === "FINISHED" ? "Ván đã kết thúc" : `${game.players.find((p) => p.id === game.attackerId)?.name} tấn · ${game.players.find((p) => p.id === game.defenderId)?.name} đỡ`}</span>
           {myTurn && <span className="flex items-center gap-1"><Timer size={18} /> {seconds}s</span>}
           <span className="flex items-center gap-1">Chủ: {SUIT_NAME[game.trumpSuit]} <img src={`/durak/ui/trump_marker_${trumpMarker[game.trumpSuit]}.png`} alt={SUIT_NAME[game.trumpSuit]} className="w-6 h-6" /></span>
@@ -303,33 +305,47 @@ export default function App() {
           <CardView card={parseCard(s.flying.cardId)} />
         </div>
       )}
-      <div className="flex gap-3 justify-center py-1 flex-wrap shrink-0">
-        {game.players.filter((p) => p.id !== HUMAN_ID).map((p, idx) => (
-          <div key={p.id} className={`flex items-center gap-2 bg-black/40 pl-1 pr-3 py-1 rounded-xl text-sm ${p.id === game.attackerId || p.id === game.defenderId ? "outline outline-yellow-400" : ""}`}>
-            {/* Avatar nằm trái, thẳng hàng với bộ bài úp của đúng người đó */}
-            <img src={`/durak/ui/avatar_${(idx % 3) + 1}.png`} alt={p.name} className="w-11 h-11 rounded-full shrink-0" />
-            <div className="flex items-center">
-              {p.hand.map((_, j) => (
-                <img key={j} src="/durak/cards/back.png" alt="" className={`w-7 h-10 rounded ${j === 0 ? "" : "-ml-3"}`} />
-              ))}
+      {/* Bàn 4 góc: mỗi người ở 1 góc bàn. Đối thủ chỉ hiện 1 lá úp + badge số lá,
+          không xòe cả bộ. Góc: đối thủ 1 = trái trên, 2 = phải trên, 3 = trái dưới, mình = phải dưới. */}
+      <div className="flex-1 min-h-0 w-full relative flex flex-col">
+        <TableCanvas game={game} />
+        {game.players.filter((p) => p.id !== HUMAN_ID).map((p, idx) => {
+          const pos = ["absolute top-2 left-2", "absolute top-2 right-2", "absolute bottom-2 left-2"][idx] || "absolute top-2 left-2";
+          return (
+            <div key={p.id} className={`${pos} z-20 flex items-center gap-2 bg-black/55 px-2 py-1 rounded-xl text-sm ${p.id === game.attackerId || p.id === game.defenderId ? "outline outline-yellow-400" : ""}`}>
+              <img src={`/durak/ui/avatar_${(idx % 3) + 1}.png`} alt={p.name} className="w-11 h-11 rounded-full shrink-0" />
+              <div className="relative shrink-0">
+                <img src="/durak/cards/back.png" alt="Bài úp" className="w-9 h-12 rounded" />
+                <span className="absolute -top-2 -right-2 bg-yellow-400 text-black font-black text-xs w-6 h-6 rounded-full flex items-center justify-center border-2 border-white">{p.hand.length}</span>
+              </div>
+              <span className="whitespace-nowrap flex flex-col leading-tight"><b>{p.name}</b><span className="flex items-center gap-1">{p.id === game.attackerId ? <Swords size={15} /> : null} {p.id === game.defenderId ? <Shield size={15} /> : null} {p.finished ? <Check size={15} /> : null} {p.hand.length} lá</span></span>
             </div>
-            <span className="whitespace-nowrap flex items-center gap-1">{p.name} {p.id === game.attackerId ? <Swords size={15} /> : null} {p.id === game.defenderId ? <Shield size={15} /> : null} {p.finished ? <Check size={15} /> : null} · <b>{p.hand.length} lá</b></span>
-          </div>
-        ))}
+          );
+        })}
+        <div className="absolute bottom-2 right-2 z-20 flex items-center gap-2 bg-black/55 px-2 py-1 rounded-xl text-sm">
+          <div className="tan-avatar" style={{ width: 44, height: 44, fontSize: 20 }}>{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>
+          <span className="whitespace-nowrap flex flex-col leading-tight"><b>{s.playerName || "Bạn"}</b><span>{me?.hand.length ?? 0} lá</span></span>
+        </div>
+        {/* Hiệu ứng bốc bài: lá bay từ nọc giữa bàn tới góc người bốc */}
+        {s.drawFlying && (() => {
+          const opps = game.players.filter((p) => p.id !== HUMAN_ID);
+          const corner = s.drawFlying.toId === HUMAN_ID ? "br" : ["tl", "tr", "bl"][opps.findIndex((p) => p.id === s.drawFlying!.toId)] || "tl";
+          return (
+            <div key={s.drawFlying.key} className={`flying-draw flying-draw-${corner}`}>
+              {s.drawFlying.toId === HUMAN_ID ? <CardView card={parseCard(s.drawFlying.cardId)} /> : <img src="/durak/cards/back.png" alt="" className="w-[72px] h-[100px] rounded-[10px]" />}
+            </div>
+          );
+        })()}
       </div>
-      <TableCanvas game={game} />
       <div className="text-center space-x-2 py-2 shrink-0">
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmAttacker && allDefended)} onClick={s.finishAttackAction}>Kết thúc đợt</button>
-        <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmDefender && game.table.length > 0)} onClick={s.takeCards}>Nhận bài</button>
+        <button className="bg-red-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmDefender && game.table.length > 0)} onClick={s.takeCards}>Lên bài</button>
+        <button className="bg-green-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(game.phase === "DRAWING" && game.pendingDraw[0] === HUMAN_ID && !s.drawing)} onClick={s.drawCards}>Bốc bài</button>
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmDefender && s.selected && game.table.length > 0 && !game.table.some((x) => x.defense) && game.table.some((x) => x.attack.rank === parseCard(s.selected as string).rank))} onClick={s.transferCard}>Chuyển tấn</button>
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(game.table.length > 0 && !iAmDefender)} onClick={s.passAdd}>Không thêm nữa</button>
         <button className="bg-yellow-400 text-black font-semibold px-4 py-2 rounded-full" onClick={s.backToLobby}>Ván mới</button>
       </div>
       <div className="flex justify-center items-center flex-wrap shrink-0 px-2 pb-2 gap-2">
-        <div className="flex items-center gap-2 bg-black/40 pl-1 pr-3 py-1 rounded-xl text-sm shrink-0">
-          <div className="tan-avatar" style={{ width: 44, height: 44, fontSize: 20 }}>{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>
-          <span className="whitespace-nowrap">{s.playerName || "Bạn"} · <b>{me?.hand.length ?? 0} lá</b></span>
-        </div>
         {me?.hand.map((c, i) => (
           <div key={c.id} className={i === 0 ? "" : "-ml-6"}>
             <CardView card={c} selected={s.selected === c.id} onClick={() => s.playCard(c.id)} />
