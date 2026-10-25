@@ -7,6 +7,10 @@ import { API_BASE, WS_URL, viewToGame } from "./game/online";
 // WebSocket online (singleton, chỉ 1 kết nối mỗi phiên)
 let onlineWs: WebSocket | null = null;
 let onlineActionSeq = 0;
+// Ham dang nhap popup da tai san (gan trong loadFirebaseConfig ngay khi mo trang).
+// Ly do: await import() truoc khi mo popup lam mat cu chi bam nut, Chrome se chan popup
+// voi loi auth/popup-blocked. Dung ham tai san thi popup mo ngay trong cung cu chi bam.
+let popupLoginFn: ((cfg: unknown) => Promise<{ name: string; email: string; avatar: string | null; idToken: string }>) | null = null;
 function onlineSend(obj: Record<string, unknown>) { if (onlineWs && onlineWs.readyState === 1) onlineWs.send(JSON.stringify(obj)); }
 function onlinePlayerToken(code: string) { try { return localStorage.getItem(`tanloc-online-${code}`) || null; } catch { return null; } }
 function onlineSaveToken(code: string, token: string) { try { localStorage.setItem(`tanloc-online-${code}`, token); } catch { /* bỏ qua */ } }
@@ -384,6 +388,9 @@ store.setState({
     if (!j?.firebaseConfig) { store.setState({ configLoading: false }); return; }
     try {
       store.setState({ firebaseConfig: j.firebaseConfig, authError: null, configLoading: false });
+      // Tai san chunk Firebase + ham popup ngay tu bay gio (trang dang nhap vua mo),
+      // de luc bam nut dang nhap khong con phai cho import nua.
+      try { const m = await import("./game/firebase-auth"); popupLoginFn = m.signInGoogleFirebase as unknown as typeof popupLoginFn; } catch { /* popup se import lai luc bam */ }
       // Đổi token Firebase lấy session backend (dùng chung cho cả redirect và watch).
       const exchange = async (fb: { idToken: string }) => {
         const rr = await fetch(`${API_BASE}/auth/firebase`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: fb.idToken }) });
@@ -415,9 +422,19 @@ store.setState({
   firebaseLogin: async () => {
     const cfg = store.getState().firebaseConfig;
     if (!cfg || !cfg.apiKey || !cfg.projectId || !cfg.appId) throw new Error("Firebase chưa cấu hình trên Render");
-    // Dùng redirect thay popup: không còn bị trình duyệt chặn popup nữa.
-    const { signInGoogleRedirect } = await import("./game/firebase-auth");
-    await signInGoogleRedirect(cfg as unknown as Parameters<typeof signInGoogleRedirect>[0]);
+    // Dang nhap POPUP (khong redirect): app host o Vercel, redirect bi trinh duyet
+    // chan luu tru cross-origin tu firebaseapp.com nen quay ve im lang khong loi.
+    // Mo popup NGAY trong cung cu chi bam nut: neu ham da tai san thi goi thang,
+    // khong await import truoc (await import lam mat cu chi, Chrome chan popup).
+    // Chi khi chua tai san moi import lai (truong hop hiem, co the bi chan).
+    const popupFn = popupLoginFn || (await import("./game/firebase-auth")).signInGoogleFirebase;
+    const fb = await popupFn(cfg as unknown as Parameters<typeof popupFn>[0]);
+    // Doi token Firebase lay session backend, giong luong redirect/watch cu.
+    const rr = await fetch(`${API_BASE}/auth/firebase`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: fb.idToken }) });
+    const jj = await rr.json();
+    if (!rr.ok) throw new Error(jj.message || jj.error || "Đăng nhập Google thất bại");
+    try { localStorage.setItem("tanloc-session", jj.sessionToken); } catch { /* bỏ qua */ }
+    store.setState((prev) => ({ googleUser: jj.user, playerName: jj.user.name, screen: prev.screen === "login" ? "lobby" : prev.screen, authError: null }));
   },
   googleLogout: async () => {
     try { localStorage.removeItem("tanloc-session"); } catch { /* bỏ qua */ }
