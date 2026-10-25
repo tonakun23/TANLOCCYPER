@@ -14,7 +14,7 @@ export interface ChatMsg { id: number; from: string; text: string; }
 const BOT_REPLIES = ["Chơi hay đấy!", "Lá này khó đỡ quá!", "Tới lượt bạn rồi kìa.", "Haha, ván này căng!", "Để xem bạn đỡ sao đây.", "Bài mình cũng không đẹp lắm đâu."];
 
 interface GameStore {
-  screen: "lobby" | "game";
+  screen: "lobby" | "rooms" | "game";
   playerName: string; playerCount: number; allowTransfer: boolean;
   game: GameState | null; selected: string | null; humanAddPassed: boolean;
   botBusy: boolean;
@@ -25,7 +25,7 @@ interface GameStore {
   // Chat chỉ tồn tại trong ván: chỉ ở bộ nhớ, không lưu DB, không localStorage.
   chat: ChatMsg[];
   setPlayerName: (v: string) => void; setPlayerCount: (v: number) => void; setAllowTransfer: (v: boolean) => void;
-  startGame: () => void; backToLobby: () => void; setSelected: (v: string | null) => void;
+  startGame: () => void; backToLobby: () => void; goToRooms: () => void; setSelected: (v: string | null) => void;
   playCard: (cardId: string) => void; defendPair: (attackId: string) => void;
   takeCards: () => void; finishAttackAction: () => void; transferCard: () => void; passAdd: () => void;
   runBots: () => Promise<void>; addLog: (msg: string) => void;
@@ -73,6 +73,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     }
   },
   backToLobby: () => set({ screen: "lobby", game: null, selected: null, notice: null, flying: null, chat: [] }),
+  goToRooms: () => set({ screen: "rooms" }),
   startGame: () => {
     const { playerName, playerCount, allowTransfer } = get();
     const names = [playerName.trim() || "Bạn"];

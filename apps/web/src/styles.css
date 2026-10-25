@@ -20,6 +20,59 @@ body { background: #1b3a1b; margin: 0; }
   80% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; }
   to { transform: translateY(0) rotate(0deg) scale(1); opacity: 0; }
 }
+/* ---------- Màn Home + chọn phòng kiểu ảnh mẫu, cho game Tấn ---------- */
+.tan-home { background: radial-gradient(ellipse at 50% 30%, #7a121d 0%, #4d0810 45%, #2a0505 100%); }
+.tan-top { display: flex; align-items: center; gap: min(2vw, 18px); padding: min(2vh, 14px) min(2vw, 20px) 0; }
+.tan-icon { width: min(8vh, 52px); height: min(8vh, 52px); border-radius: 50%; border: 1.5px solid rgba(255,255,255,.45); background: rgba(0,0,0,.25); color: #fff; font-size: min(4.5vh, 28px); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.tan-avatar { width: min(11vh, 68px); height: min(11vh, 68px); border-radius: 50%; flex-shrink: 0; background: linear-gradient(135deg, #ffb84d, #e2574c); border: 2px solid rgba(255,255,255,.7); display: flex; align-items: center; justify-content: center; font-size: min(5vh, 32px); font-weight: 800; }
+.tan-shop { margin-left: auto; display: flex; align-items: center; gap: min(1vw, 8px); }
+.tan-shop-label { background: #2f9e8f; padding: min(1.2vh, 9px) min(2vw, 16px); border-radius: 99px 0 0 99px; font-weight: 800; font-size: clamp(12px, 2.8vh, 19px); }
+.tan-coins { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: clamp(13px, 3vh, 20px); color: #ffd97a; }
+.tan-coin { width: min(7vh, 44px); height: min(7vh, 44px); border-radius: 50%; flex-shrink: 0; background: radial-gradient(circle at 35% 30%, #ffe27a, #f5a623 60%, #b45309); border: 3px dashed #7c2d12; display: flex; align-items: center; justify-content: center; color: #7c2d12; font-size: min(3.4vh, 22px); font-weight: 900; }
+.tan-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: min(4vw, 42px); padding: 0 min(2vw, 20px); min-height: 0; }
+.tan-play { position: relative; width: min(36vw, 62vh); height: min(38vh, 260px); min-height: 132px; background: linear-gradient(180deg, #e11d48, #be123c 60%, #9f1239); border-radius: min(3vh, 20px); box-shadow: 0 10px 24px rgba(0,0,0,.45), inset 0 2px 0 rgba(255,255,255,.35); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: min(2.5vh, 16px); cursor: pointer; border: none; color: #fff; }
+.tan-play:active { transform: scale(.96); }
+.tan-play h2 { font-size: clamp(15px, 3.6vh, 26px); letter-spacing: .5px; text-shadow: 0 2px 4px rgba(0,0,0,.4); }
+.tan-fan { position: absolute; top: -4%; left: 50%; display: flex; }
+.tan-fan img { width: min(9vw, 15vh); min-width: 44px; border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,.4); margin-left: -18px; }
+.tan-fan img:first-child { margin-left: -60px; transform: rotate(-14deg); }
+.tan-fan img:nth-child(2) { transform: rotate(-5deg); }
+.tan-fan img:nth-child(3) { transform: rotate(5deg); }
+.tan-fan img:nth-child(4) { transform: rotate(14deg); }
+.tan-chips { position: absolute; bottom: 24%; left: 50%; transform: translateX(-50%); display: flex; }
+.tan-chip { width: min(7vw, 11vh); height: min(7vw, 11vh); min-width: 34px; min-height: 34px; border-radius: 50%; border: 4px dashed rgba(255,255,255,.85); display: flex; align-items: center; justify-content: center; font-weight: 900; margin-left: -14px; box-shadow: 0 4px 8px rgba(0,0,0,.4); }
+.tan-chip:first-child { margin-left: 0; }
+.tan-bottom { display: flex; align-items: flex-end; justify-content: space-between; padding: 0 min(2vw, 20px) min(2vh, 12px); }
+.tan-bottom-group { display: flex; align-items: center; gap: min(2vw, 16px); }
+.tan-bottom-btn { position: relative; display: flex; flex-direction: column; align-items: center; color: rgba(255,255,255,.9); background: none; border: none; cursor: pointer; }
+.tan-bottom-btn .circle { width: min(9vh, 58px); height: min(9vh, 58px); border-radius: 50%; border: 1.5px solid rgba(255,255,255,.45); background: rgba(0,0,0,.3); display: flex; align-items: center; justify-content: center; font-size: min(4vh, 26px); }
+.tan-badge { position: absolute; top: -4px; right: -2px; background: #ef4444; color: #fff; border-radius: 99px; min-width: 22px; height: 22px; padding: 0 5px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; border: 2px solid #fff; }
+.tan-spin { width: min(22vw, 34vh); height: min(11vw, 17vh); min-width: 120px; min-height: 60px; background: radial-gradient(ellipse at 50% 100%, #f59e0b, #b45309 70%); border: 3px solid #fde68a; border-bottom: none; border-radius: 999px 999px 0 0; display: flex; align-items: flex-start; justify-content: center; padding-top: min(2vh, 12px); font-weight: 900; letter-spacing: 2px; font-size: clamp(13px, 3vh, 20px); cursor: pointer; color: #fff; }
+.tan-choose { width: min(11vh, 72px); height: min(11vh, 72px); border-radius: 50%; flex-shrink: 0; background: radial-gradient(circle at 35% 30%, #f87171, #be123c 65%); border: 3px solid #fbbf24; font-weight: 900; font-size: clamp(11px, 2.4vh, 16px); line-height: 1.15; box-shadow: 0 6px 14px rgba(0,0,0,.45); cursor: pointer; color: #fff; }
+/* Bảng phòng Tấn */
+.tan-rooms-top { display: flex; align-items: center; gap: min(2vw, 16px); padding: min(2vh, 12px) min(2vw, 20px) 0; }
+.tan-pill { padding: min(1.6vh, 12px) min(3vw, 26px); border-radius: 10px; font-weight: 900; font-size: clamp(13px, 3vh, 20px); letter-spacing: .5px; box-shadow: 0 4px 10px rgba(0,0,0,.4); cursor: pointer; border: none; }
+.tan-pill.orange { background: linear-gradient(180deg, #fcd34d, #f59e0b); color: #451a03; }
+.tan-pill.green { background: linear-gradient(180deg, #4ade80, #16a34a); color: #052e16; }
+.tan-table { margin: min(2vh, 14px) min(2vw, 20px) 0; flex: 1; min-height: 0; border: 1.5px solid rgba(251,191,36,.6); background: rgba(0,0,0,.25); overflow: hidden; }
+.tan-head, .tan-row { display: grid; grid-template-columns: 1.1fr 1fr 1.4fr 1fr 1.1fr; align-items: center; text-align: center; }
+.tan-head { background: rgba(153,27,27,.85); border-bottom: 1.5px solid rgba(251,191,36,.6); font-size: clamp(12px, 2.8vh, 19px); color: rgba(255,255,255,.85); padding: min(1.6vh, 12px) 0; }
+.tan-head span:first-child { text-align: left; padding-left: min(2vw, 16px); }
+.tan-list { overflow-y: auto; height: calc(100% - 46px); }
+.tan-row { border-bottom: 1.5px solid rgba(239,68,68,.5); padding: min(1.4vh, 10px) 0; }
+.tan-room-id { justify-self: start; margin-left: min(1vw, 8px); padding: min(1.2vh, 9px) min(2vw, 16px); background: linear-gradient(90deg, rgba(220,38,38,.7), rgba(127,29,29,.4)); clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%); font-weight: 800; font-size: clamp(13px, 3vh, 20px); }
+.tan-bet, .tan-min { color: #facc15; font-weight: 900; font-size: clamp(14px, 3.2vh, 22px); }
+.tan-hearts { font-size: clamp(16px, 3.6vh, 24px); letter-spacing: 4px; }
+.tan-hearts .on { color: #ef4444; } .tan-hearts .off { color: rgba(0,0,0,.55); }
+.tan-join { justify-self: center; background: #2f9e8f; color: #fff; padding: min(1.4vh, 10px) min(2.5vw, 22px); border-radius: 8px; font-weight: 700; font-size: clamp(12px, 2.8vh, 18px); cursor: pointer; border: none; box-shadow: 0 3px 8px rgba(0,0,0,.4); }
+.tan-tabs { display: flex; }
+.tan-tab { padding: min(1.6vh, 12px) min(2.5vw, 22px); border: 1.5px solid rgba(239,68,68,.7); background: rgba(0,0,0,.35); font-weight: 700; font-size: clamp(12px, 2.8vh, 18px); margin-left: -1.5px; cursor: pointer; color: #fff; }
+.tan-tab:first-child { margin-left: 0; }
+.tan-tab.active { background: #dc2626; }
+@media (orientation: portrait) {
+  .tan-home .tan-center { flex-direction: column; }
+}
+
 /* Toast thông báo ngắn gọn: trượt xuống rồi đứng yên, App tự ẩn sau 3 giây. */
 .toast-notice { animation: toast-in .3s ease-out forwards; }
 @keyframes toast-in {
