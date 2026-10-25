@@ -9,34 +9,76 @@ function cloneGame(g: GameState): GameState {
 }
 export const HUMAN_ID = "player_0";
 
+export interface FlyingCard { cardId: string; by: string; key: number; }
+export interface ChatMsg { id: number; from: string; text: string; }
+const BOT_REPLIES = ["Chơi hay đấy!", "Lá này khó đỡ quá!", "Tới lượt bạn rồi kìa.", "Haha, ván này căng!", "Để xem bạn đỡ sao đây.", "Bài mình cũng không đẹp lắm đâu."];
+
 interface GameStore {
   screen: "lobby" | "game";
   playerName: string; playerCount: number; allowTransfer: boolean;
   game: GameState | null; selected: string | null; humanAddPassed: boolean;
-  log: string[]; botBusy: boolean;
+  botBusy: boolean;
+  // Thông báo ngắn gọn hiện dạng toast (thay khung log dài cũ).
+  notice: string | null; noticeKey: number;
+  // Lá đang bay lên bàn (hiệu ứng), key đổi mỗi lần đánh để animation chạy lại.
+  flying: FlyingCard | null;
+  // Chat chỉ tồn tại trong ván: chỉ ở bộ nhớ, không lưu DB, không localStorage.
+  chat: ChatMsg[];
   setPlayerName: (v: string) => void; setPlayerCount: (v: number) => void; setAllowTransfer: (v: boolean) => void;
   startGame: () => void; backToLobby: () => void; setSelected: (v: string | null) => void;
   playCard: (cardId: string) => void; defendPair: (attackId: string) => void;
   takeCards: () => void; finishAttackAction: () => void; transferCard: () => void; passAdd: () => void;
   runBots: () => Promise<void>; addLog: (msg: string) => void;
+  sendChat: (text: string) => void; clearNotice: () => void;
   autoLowestAttack: () => void;
+}
+
+// Lá mới xuất hiện trên bàn sau một nước đi (so với trước nước đi).
+function newTableCard(before: Set<string>, game: GameState): string | null {
+  for (const pair of game.table) {
+    if (!before.has(pair.attack.id)) return pair.attack.id;
+    if (pair.defense && !before.has(pair.defense.id)) return pair.defense.id;
+  }
+  return null;
+}
+function tableIds(game: GameState): Set<string> {
+  const s = new Set<string>();
+  for (const pair of game.table) { s.add(pair.attack.id); if (pair.defense) s.add(pair.defense.id); }
+  return s;
 }
 
 export const useGameStore = create<GameStore>()((set, get) => ({
   screen: "lobby", playerName: "Bạn", playerCount: 4, allowTransfer: true,
-  game: null, selected: null, humanAddPassed: false, log: [], botBusy: false,
+  game: null, selected: null, humanAddPassed: false, botBusy: false,
+  notice: null, noticeKey: 0, flying: null, chat: [],
   setPlayerName: (v) => set({ playerName: v }),
   setPlayerCount: (v) => set({ playerCount: v }),
   setAllowTransfer: (v) => set({ allowTransfer: v }),
   setSelected: (v) => set({ selected: v }),
-  addLog: (msg) => set((s) => ({ log: [msg, ...s.log].slice(0, 50) })),
-  backToLobby: () => set({ screen: "lobby", game: null, selected: null, log: [] }),
+  addLog: (msg) => set((s) => ({ notice: msg, noticeKey: s.noticeKey + 1 })),
+  clearNotice: () => set({ notice: null }),
+  sendChat: (text) => {
+    const t = text.trim(); if (!t) return;
+    const st = store.getState();
+    const me = st.playerName.trim() || "Bạn";
+    const id = Date.now();
+    set((s) => ({ chat: [...s.chat, { id, from: me, text: t }] }));
+    // Bot trả lời cho vui, chỉ trong ván này, không lưu đâu cả.
+    const bot = st.game?.players.find((p) => p.id !== HUMAN_ID);
+    if (bot) {
+      const reply = BOT_REPLIES[Math.floor(Math.random() * BOT_REPLIES.length)];
+      window.setTimeout(() => {
+        if (store.getState().screen === "game") set((s) => ({ chat: [...s.chat, { id: id + 1, from: bot.name, text: reply }] }));
+      }, 900);
+    }
+  },
+  backToLobby: () => set({ screen: "lobby", game: null, selected: null, notice: null, flying: null, chat: [] }),
   startGame: () => {
     const { playerName, playerCount, allowTransfer } = get();
     const names = [playerName.trim() || "Bạn"];
     for (let i = 1; i < playerCount; i++) names.push(`Bot ${i}`);
     const game = createGame({ playerCount, playerNames: names, allowTransfer });
-    set({ screen: "game", game: cloneGame(game), selected: null, humanAddPassed: false, log: [`Ván mới: ${playerCount} người, chất chủ là ${game.trumpSuit}. Người tấn đầu: ${game.players.find((p) => p.id === game.attackerId)?.name}.`] });
+    set({ screen: "game", game: cloneGame(game), selected: null, humanAddPassed: false, chat: [{ id: Date.now(), from: "Hệ thống", text: "Chat trong ván này thôi, thoát ván là mất, không lưu lại." }], notice: `Ván mới: chất chủ ${game.trumpSuit}, ${game.players.find((p) => p.id === game.attackerId)?.name} tấn đầu.`, noticeKey: Date.now() });
     void get().runBots();
   },
   playCard: () => {},
@@ -64,14 +106,16 @@ store.setState({
     }
     const card = me.hand.find((c) => c.id === cardId);
     if (card && canAttackCard(game, HUMAN_ID, card)) {
-      try { attack(game, HUMAN_ID, cardId); store.setState({ game: cloneGame(game), selected: null, humanAddPassed: false }); store.getState().addLog(`Bạn đánh ${cardLabel(card)}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
+      const before = tableIds(game);
+      try { attack(game, HUMAN_ID, cardId); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), selected: null, humanAddPassed: false, flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); store.getState().addLog(`Bạn đánh ${cardLabel(card)}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
     } else { store.setState({ selected: cardId }); }
     void selected;
   },
   defendPair: (attackId: string) => {
     const { game, selected } = store.getState();
     if (!game || !selected) return;
-    try { defend(game, HUMAN_ID, attackId, selected); store.setState({ game: cloneGame(game), selected: null, humanAddPassed: false }); store.getState().addLog(`Bạn đỡ ${attackId} bằng ${selected}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
+    const before = tableIds(game);
+    try { defend(game, HUMAN_ID, attackId, selected); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), selected: null, humanAddPassed: false, flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); store.getState().addLog(`Bạn đỡ ${attackId} bằng ${selected}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
   },
   takeCards: () => {
     const { game } = store.getState(); if (!game) return;
@@ -83,14 +127,16 @@ store.setState({
   },
   transferCard: () => {
     const { game, selected } = store.getState(); if (!game || !selected) return;
-    try { transfer(game, HUMAN_ID, selected); store.setState({ game: cloneGame(game), selected: null }); store.getState().addLog(`Bạn chuyển tấn bằng ${selected}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
+    const before = tableIds(game);
+    try { transfer(game, HUMAN_ID, selected); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), selected: null, flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); store.getState().addLog(`Bạn chuyển tấn bằng ${selected}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
   },
   passAdd: () => { store.setState({ humanAddPassed: true }); void store.getState().runBots(); },
   autoLowestAttack: () => {
     const { game } = store.getState(); if (!game) return;
     const me = game.players.find((p) => p.id === HUMAN_ID); if (!me || !me.hand.length) return;
     const card = lowestCard(me.hand, game.trumpSuit);
-    try { attack(game, HUMAN_ID, card.id); store.setState({ game: cloneGame(game) }); store.getState().addLog(`Hết giờ: tự đánh ${cardLabel(card)}.`); void store.getState().runBots(); } catch { /* bỏ qua */ }
+    const before = tableIds(game);
+    try { attack(game, HUMAN_ID, card.id); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); store.getState().addLog(`Hết giờ: tự đánh ${cardLabel(card)}.`); void store.getState().runBots(); } catch { /* bỏ qua */ }
   },
   runBots: async () => {
     const s = store.getState(); if (s.botBusy || !s.game || s.game.phase === "FINISHED") return;
@@ -99,26 +145,34 @@ store.setState({
       let guard = 0;
       while (guard++ < 100) {
         const game = store.getState().game; if (!game || game.phase === "FINISHED") break;
-        await delay(450);
+        await delay(700);
         const g = store.getState().game; if (!g || g.phase === "FINISHED") break;
         const defender = g.players.find((p) => p.id === g.defenderId); const attacker = g.players.find((p) => p.id === g.attackerId);
         if (!defender || !attacker) break;
+        // Chạy 1 nước bot, đồng thời bắt lá vừa đánh để làm hiệu ứng bay.
+        const applyBot = (actorId: string, fn: () => string | null) => {
+          const before = tableIds(g);
+          const msg = fn();
+          const played = newTableCard(before, g);
+          store.setState({ game: cloneGame(g), humanAddPassed: false, flying: played ? { cardId: played, by: actorId, key: Date.now() } : undefined });
+          if (msg) store.getState().addLog(msg);
+        };
         const undefended = g.table.filter((x) => !x.defense);
         if (g.table.length > 0 && undefended.length > 0) {
-          if (defender.id !== HUMAN_ID) { const msg = botDefendStep(g, defender); store.setState({ game: cloneGame(g), humanAddPassed: false }); if (msg) store.getState().addLog(msg); continue; }
+          if (defender.id !== HUMAN_ID) { applyBot(defender.id, () => botDefendStep(g, defender)); continue; }
           break;
         }
         if (g.table.length === 0) {
-          if (attacker.id !== HUMAN_ID && !attacker.finished) { const msg = botAttackStep(g, attacker); store.setState({ game: cloneGame(g) }); if (msg) store.getState().addLog(msg); continue; }
+          if (attacker.id !== HUMAN_ID && !attacker.finished) { applyBot(attacker.id, () => botAttackStep(g, attacker)); continue; }
           break;
         }
-        if (attacker.id !== HUMAN_ID) { const msg = botAttackStep(g, attacker); store.setState({ game: cloneGame(g) }); if (msg) store.getState().addLog(msg); continue; }
+        if (attacker.id !== HUMAN_ID) { applyBot(attacker.id, () => botAttackStep(g, attacker)); continue; }
         if (attacker.id === HUMAN_ID) break;
         const human = g.players.find((p) => p.id === HUMAN_ID);
         const humanCanAdd = human && !human.finished && human.hand.some((c) => canAttackCard(g, HUMAN_ID, c));
         if (humanCanAdd && !store.getState().humanAddPassed) break;
         const adderBot = g.players.find((p) => p.id !== HUMAN_ID && p.id !== g.defenderId && !p.finished && p.hand.some((c) => canAttackCard(g, p.id, c)));
-        if (adderBot) { const msg = botAdderStep(g, adderBot); store.setState({ game: cloneGame(g) }); if (msg) store.getState().addLog(msg); continue; }
+        if (adderBot) { applyBot(adderBot.id, () => botAdderStep(g, adderBot)); continue; }
         break;
       }
     } finally { store.setState({ botBusy: false }); }

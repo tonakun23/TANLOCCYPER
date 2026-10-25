@@ -64,34 +64,52 @@ function drawCard(container: PIXI.Container, x: number, y: number, card: Card | 
 
 function drawTable(app: PIXI.Application, game: GameState, textures?: Map<string, PIXI.Texture>) {
   app.stage.removeChildren();
+  const w = app.screen.width, h = app.screen.height;
+  const cx = w / 2, cy = h / 2;
+  const rx = Math.min(390, w * 0.42), ry = Math.min(150, h * 0.36);
   const table = new PIXI.Graphics();
-  table.ellipse(430, 180, 390, 150);
+  table.ellipse(cx, cy, rx, ry);
   table.fill(0x2e7d32);
   table.stroke({ color: 0xfacc15, width: 4 });
   app.stage.addChild(table);
-  const info = new PIXI.Text({ text: `Chủ: ${SUIT_NAME[game.trumpSuit]} ${SUIT_SYMBOL[game.trumpSuit]}  •  Nọc: ${game.drawPile.length} lá  •  Bỏ: ${game.discardPile.length}`, style: { fontSize: 18, fill: 0xfde68a } });
-  info.x = 180; info.y = 20; app.stage.addChild(info);
-  // Đối thủ: mặt sau bài ở phía trên
+  const info = new PIXI.Text({ text: `Chủ: ${SUIT_NAME[game.trumpSuit]} ${SUIT_SYMBOL[game.trumpSuit]}  •  Bỏ: ${game.discardPile.length}`, style: { fontSize: 18, fill: 0xfde68a } });
+  info.x = cx - info.width / 2; info.y = cy - ry - 28; app.stage.addChild(info);
+  // Đối thủ: mặt sau bài ở phía trên, dàn đều theo chiều rộng màn hình
   const opps = game.players.filter((p) => p.id !== HUMAN_ID);
   opps.forEach((p, i) => {
-    const baseX = 120 + i * 220;
+    const baseX = w * (i + 1) / (opps.length + 1) - 40;
     const name = new PIXI.Text({ text: `${p.name} (${p.hand.length} lá)`, style: { fontSize: 16, fill: 0xffffff } });
-    name.x = baseX; name.y = 50; app.stage.addChild(name);
-    p.hand.slice(0, 5).forEach((_, j) => drawCard(app.stage, baseX + j * 18, 75, null, true, textures));
+    name.x = baseX; name.y = 12; app.stage.addChild(name);
+    p.hand.slice(0, 5).forEach((_, j) => drawCard(app.stage, baseX + j * 18, 36, null, true, textures));
   });
+  // Nọc ở giữa bàn, bên trái: lá chủ ngửa ở dưới, chồng bài úp đè lên trên.
+  const pileX = Math.max(12, cx - rx - 92), pileY = cy - 44;
+  if (game.drawPile.length > 0) {
+    const trump = game.drawPile.find((c) => c.id === game.trumpCardId) || game.drawPile[game.drawPile.length - 1];
+    drawCard(app.stage, pileX, pileY, trump, false, textures);
+    const backs = Math.min(3, game.drawPile.length - 1);
+    for (let j = 0; j < backs; j++) drawCard(app.stage, pileX + 6 + j * 3, pileY - 4 - j * 2, null, true, textures);
+    const count = new PIXI.Text({ text: `Nọc: ${game.drawPile.length} lá`, style: { fontSize: 16, fill: 0xfde68a, fontWeight: "bold" } });
+    count.x = pileX - 4; count.y = pileY + 94; app.stage.addChild(count);
+    const trumpLabel = new PIXI.Text({ text: `Chủ: ${SUIT_NAME[game.trumpSuit]} ${SUIT_SYMBOL[game.trumpSuit]}`, style: { fontSize: 14, fill: 0xffffff } });
+    trumpLabel.x = pileX - 4; trumpLabel.y = pileY + 116; app.stage.addChild(trumpLabel);
+  } else {
+    const emptyPile = new PIXI.Text({ text: "Hết nọc", style: { fontSize: 16, fill: 0xfecaca } });
+    emptyPile.x = pileX; emptyPile.y = cy; app.stage.addChild(emptyPile);
+  }
   // Bài trên bàn ở giữa
   if (!game.table.length) {
     const empty = new PIXI.Text({ text: "Chưa có bài trên bàn", style: { fontSize: 18, fill: 0xfecaca } });
-    empty.x = 330; empty.y = 170; app.stage.addChild(empty);
+    empty.x = cx - empty.width / 2; empty.y = cy - 10; app.stage.addChild(empty);
   } else {
     const totalW = game.table.length * 90;
     game.table.forEach((pair, i) => {
-      const x = 430 - totalW / 2 + i * 90;
-      drawCard(app.stage, x, 150, pair.attack, false, textures);
-      if (pair.defense) drawCard(app.stage, x + 20, 168, pair.defense, false, textures);
+      const x = cx - totalW / 2 + i * 90;
+      drawCard(app.stage, x, cy - 30, pair.attack, false, textures);
+      if (pair.defense) drawCard(app.stage, x + 20, cy - 12, pair.defense, false, textures);
       else {
         const wait = new PIXI.Text({ text: "chờ đỡ…", style: { fontSize: 14, fill: 0xfde68a } });
-        wait.x = x + 20; wait.y = 168; app.stage.addChild(wait);
+        wait.x = x + 20; wait.y = cy - 12; app.stage.addChild(wait);
       }
     });
   }
@@ -101,23 +119,34 @@ export function TableCanvas({ game }: { game: GameState }) {
   const ref = useRef<HTMLDivElement>(null);
   const appRef = useRef<PIXI.Application | null>(null);
   const texturesRef = useRef<Map<string, PIXI.Texture> | undefined>(undefined);
+  const gameRef = useRef(game);
+  gameRef.current = game;
   useEffect(() => {
     let cancelled = false;
     let app: PIXI.Application | null = null;
+    let observer: ResizeObserver | null = null;
     (async () => {
+      const el = ref.current; if (!el) return;
       app = new PIXI.Application();
-      await app.init({ width: 860, height: 360, background: "#1b3a1b", antialias: true });
+      await app.init({ width: Math.max(320, el.clientWidth), height: Math.max(240, el.clientHeight), background: "#1b3a1b", antialias: true });
       if (cancelled) { app.destroy(true); return; }
       appRef.current = app;
-      ref.current?.appendChild(app.canvas);
+      el.appendChild(app.canvas);
       const textures = await loadTextures();
       if (cancelled) return;
       texturesRef.current = textures;
-      drawTable(app, game, textures);
+      drawTable(app, gameRef.current, textures);
+      // Bàn full màn: canvas co giãn theo khung chứa, vẽ lại khi đổi kích thước.
+      observer = new ResizeObserver(() => {
+        if (!app || !el) return;
+        app.renderer.resize(Math.max(320, el.clientWidth), Math.max(240, el.clientHeight));
+        drawTable(app, gameRef.current, texturesRef.current);
+      });
+      observer.observe(el);
     })();
-    return () => { cancelled = true; app?.destroy(true); appRef.current = null; };
+    return () => { cancelled = true; observer?.disconnect(); app?.destroy(true); appRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { if (appRef.current) drawTable(appRef.current, game, texturesRef.current); }, [game]);
-  return <div ref={ref} className="flex justify-center overflow-x-auto" />;
+  return <div ref={ref} className="flex-1 min-h-0 w-full [&>canvas]:block [&>canvas]:w-full [&>canvas]:h-full" />;
 }

@@ -7,6 +7,14 @@ import { parseCard, SUIT_NAME, SUIT_SYMBOL } from "../../../packages/game-core/s
 export default function App() {
   const s = useGameStore();
   const [seconds, setSeconds] = useState(30);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatText, setChatText] = useState("");
+  // Toast thông báo: hiện ~3 giây rồi tự ẩn.
+  useEffect(() => {
+    if (!s.notice) return;
+    const id = setTimeout(() => s.clearNotice(), 3000);
+    return () => clearTimeout(id);
+  }, [s.noticeKey, s.notice, s]);
   const game = s.game;
   const me = game?.players.find((p) => p.id === HUMAN_ID);
   const iAmDefender = game?.defenderId === HUMAN_ID;
@@ -58,54 +66,87 @@ export default function App() {
   else if (!iAmDefender && game.table.length > 0) hint = "Bạn có thể thêm bài cùng hạng, hoặc bấm Không thêm nữa.";
 
   return (
-    <div className="min-h-screen bg-[#2a0505] text-white p-4">
-      <div className="flex flex-wrap gap-4 bg-red-950 px-4 py-3 font-semibold rounded items-center justify-between">
+    <div className="h-screen w-screen overflow-hidden bg-[#1b3a1b] text-white flex flex-col relative">
+      <div className="flex flex-wrap gap-3 bg-black/50 px-3 py-2 font-semibold items-center justify-between shrink-0">
         <span className="flex items-center gap-3">
-          <button className="w-10 h-10 rounded-full bg-red-900 border border-white/30 text-xl" title="Về sảnh" onClick={s.backToLobby}>×</button>
+          <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 text-xl" title="Về sảnh" onClick={s.backToLobby}>×</button>
           <span>{game.phase === "FINISHED" ? "Ván đã kết thúc" : `${game.players.find((p) => p.id === game.attackerId)?.name} tấn · ${game.players.find((p) => p.id === game.defenderId)?.name} đỡ`}</span>
           {myTurn && <span>⏱ {seconds}s</span>}
           <span className="flex items-center gap-1">Chủ: {SUIT_NAME[game.trumpSuit]} <img src={`/durak/ui/trump_marker_${trumpMarker[game.trumpSuit]}.png`} alt={SUIT_NAME[game.trumpSuit]} className="w-6 h-6" /></span>
           <span>Nọc: {game.drawPile.length} lá</span>
         </span>
         <span className="flex gap-2">
-          <button className="w-10 h-10 rounded-full bg-red-900 border border-white/30 text-xs" title="Chat chưa làm trong bản bot">Chat</button>
-          <button className="w-10 h-10 rounded-full bg-red-900 border border-white/30 text-xs" title="Cài đặt chưa làm trong bản bot">Menu</button>
+          <button className="px-4 h-9 rounded-full bg-red-900 border border-white/30 text-sm" onClick={() => setChatOpen((v) => !v)}>💬 Chat{s.chat.length > 1 ? ` (${s.chat.length - 1})` : ""}</button>
+          <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 text-xs" title="Cài đặt chưa làm trong bản bot">Menu</button>
         </span>
       </div>
-      <TableCanvas game={game} />
-      <div className="flex gap-3 justify-center my-3 flex-wrap">
+      {/* Toast thông báo ngắn gọn, thay khung log dài cũ (đã bỏ). */}
+      {s.notice && (
+        <div key={s.noticeKey} className="toast-notice absolute top-14 left-1/2 -translate-x-1/2 z-40 bg-black/80 border border-yellow-400 text-yellow-100 text-sm font-semibold px-4 py-2 rounded-full shadow-lg whitespace-nowrap max-w-[92vw] overflow-hidden text-ellipsis">
+          {s.notice}
+        </div>
+      )}
+      {/* Lá vừa đánh bay từ tay người đánh lên giữa bàn. */}
+      {s.flying && (
+        <div key={s.flying.key} className={`flying-card ${s.flying.by === HUMAN_ID ? "flying-human" : "flying-bot"}`}>
+          <CardView card={parseCard(s.flying.cardId)} />
+        </div>
+      )}
+      <div className="flex gap-2 justify-center py-2 flex-wrap shrink-0">
         {game.players.filter((p) => p.id !== HUMAN_ID).map((p, idx) => (
-          <div key={p.id} className={`flex items-center gap-2 bg-black/40 px-4 py-2 rounded-xl ${p.id === game.attackerId || p.id === game.defenderId ? "outline outline-yellow-400" : ""}`}>
-            <img src={`/durak/ui/avatar_${(idx % 3) + 1}.png`} alt={p.name} className="w-10 h-10 rounded-full" />
+          <div key={p.id} className={`flex items-center gap-2 bg-black/40 px-3 py-1 rounded-xl text-sm ${p.id === game.attackerId || p.id === game.defenderId ? "outline outline-yellow-400" : ""}`}>
+            <img src={`/durak/ui/avatar_${(idx % 3) + 1}.png`} alt={p.name} className="w-8 h-8 rounded-full" />
             <span>{p.name} {p.id === game.attackerId ? "⚔️ tấn" : ""} {p.id === game.defenderId ? "🛡️ đỡ" : ""} {p.finished ? "✅ xong" : ""} · {p.hand.length} lá</span>
           </div>
         ))}
       </div>
-      <div className="text-center space-x-2 my-3">
+      <TableCanvas game={game} />
+      <div className="text-center space-x-2 py-2 shrink-0">
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmAttacker && allDefended)} onClick={s.finishAttackAction}>Kết thúc đợt</button>
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmDefender && game.table.length > 0)} onClick={s.takeCards}>Nhận bài</button>
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmDefender && s.selected && game.table.length > 0 && !game.table.some((x) => x.defense) && game.table.some((x) => x.attack.rank === parseCard(s.selected as string).rank))} onClick={s.transferCard}>Chuyển tấn</button>
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(game.table.length > 0 && !iAmDefender)} onClick={s.passAdd}>Không thêm nữa</button>
         <button className="bg-yellow-400 text-black font-semibold px-4 py-2 rounded-full" onClick={s.backToLobby}>Ván mới</button>
       </div>
-      <div className="flex justify-center flex-wrap min-h-[120px] p-4">
+      <div className="flex justify-center flex-wrap shrink-0 px-2 pb-2">
         {me?.hand.map((c, i) => (
           <div key={c.id} className={i === 0 ? "" : "-ml-6"}>
             <CardView card={c} selected={s.selected === c.id} onClick={() => s.playCard(c.id)} />
           </div>
         ))}
       </div>
-      <p className="text-center text-yellow-200">{hint}</p>
-      <div className="max-w-3xl mx-auto bg-black/40 p-3 rounded-xl max-h-40 overflow-auto text-sm my-4">
-        {s.log.map((l, i) => <div key={i}>{l}</div>)}
-      </div>
+      <p className="text-center text-yellow-200 text-sm pb-2 shrink-0">{hint}</p>
+      {/* Chat trong ván: chỉ ở bộ nhớ, thoát ván là mất, không lưu DB. */}
+      {chatOpen && (
+        <div className="absolute bottom-2 right-2 z-50 w-80 max-w-[92vw] bg-black/90 border border-yellow-400/60 rounded-2xl overflow-hidden shadow-2xl">
+          <div className="flex justify-between items-center px-3 py-2 bg-red-950 font-semibold text-sm">
+            <span>💬 Chat trong ván</span>
+            <button onClick={() => setChatOpen(false)}>×</button>
+          </div>
+          <div className="h-56 overflow-auto p-3 space-y-2 text-sm">
+            {s.chat.map((m) => (
+              <div key={m.id} className={m.from === (s.playerName.trim() || "Bạn") ? "text-right" : ""}>
+                <span className="text-yellow-300 text-xs font-semibold">{m.from}: </span>
+                <span>{m.text}</span>
+              </div>
+            ))}
+          </div>
+          <form className="flex gap-2 p-2 border-t border-white/20" onSubmit={(e) => { e.preventDefault(); s.sendChat(chatText); setChatText(""); }}>
+            <input className="flex-1 min-w-0 text-black px-3 py-2 rounded-full text-sm" placeholder="Nhắn trong ván này…" value={chatText} onChange={(e) => setChatText(e.target.value)} />
+            <button className="bg-yellow-400 text-black font-bold px-4 rounded-full text-sm" type="submit">Gửi</button>
+          </form>
+          <p className="text-center text-white/50 text-xs pb-2">Thoát ván là mất chat, không lưu lại.</p>
+        </div>
+      )}
       {game.phase === "FINISHED" && (
-        <div className="max-w-xl mx-auto bg-red-900 border border-yellow-400 rounded-2xl p-6 text-center">
-          <img src={game.loserId === HUMAN_ID ? "/durak/ui/you_lose.png" : "/durak/ui/you_won.png"} alt="Kết quả" className="w-48 mx-auto mb-3" />
-          <h2 className="text-xl font-bold">Kết quả</h2>
-          <p>Người thua: <b>{game.players.find((p) => p.id === game.loserId)?.name}</b></p>
-          <p>Thứ tự hoàn thành: {game.finishOrder.map((id) => game.players.find((p) => p.id === id)?.name).join(" → ") || "—"}</p>
-          <button className="bg-yellow-400 text-black font-bold px-6 py-3 rounded-full mt-3" onClick={s.backToLobby}>Chơi ván mới</button>
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60">
+          <div className="max-w-xl mx-4 bg-red-900 border border-yellow-400 rounded-2xl p-6 text-center">
+            <img src={game.loserId === HUMAN_ID ? "/durak/ui/you_lose.png" : "/durak/ui/you_won.png"} alt="Kết quả" className="w-48 mx-auto mb-3" />
+            <h2 className="text-xl font-bold">Kết quả</h2>
+            <p>Người thua: <b>{game.players.find((p) => p.id === game.loserId)?.name}</b></p>
+            <p>Thứ tự hoàn thành: {game.finishOrder.map((id) => game.players.find((p) => p.id === id)?.name).join(" → ") || "—"}</p>
+            <button className="bg-yellow-400 text-black font-bold px-6 py-3 rounded-full mt-3" onClick={s.backToLobby}>Chơi ván mới</button>
+          </div>
         </div>
       )}
     </div>

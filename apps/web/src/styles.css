@@ -1,6 +1,31 @@
 @import "tailwindcss";
-body { background: #2a0505; }
-.card { width: 72px; height: 100px; background: #fff; color: #111; border-radius: 10px; border: 2px solid #111; padding: 6px 0 0 6px; font-weight: 800; box-shadow: 0 4px 10px rgba(0,0,0,.4); cursor: pointer; text-align: left; position: relative; overflow: hidden; flex-shrink: 0; }
+html, body, #root { height: 100%; }
+body { background: #1b3a1b; margin: 0; }
+.card { width: 72px; height: 100px; background: #fff; color: #111; border-radius: 10px; border: 2px solid #111; padding: 6px 0 0 6px; font-weight: 800; box-shadow: 0 4px 10px rgba(0,0,0,.4); cursor: pointer; text-align: left; position: relative; overflow: hidden; flex-shrink: 0; transition: transform .25s ease, box-shadow .25s ease; }
+.card:hover { transform: translateY(-10px); box-shadow: 0 10px 18px rgba(0,0,0,.5); }
+.card:active { transform: translateY(-2px) scale(.97); }
+/* Lá bay lên bàn: người chơi bay từ dưới lên, bot bay từ trên xuống. */
+.flying-card { position: fixed; left: 50%; top: 46%; margin-left: -36px; margin-top: -50px; z-index: 50; pointer-events: none; filter: drop-shadow(0 12px 16px rgba(0,0,0,.6)); }
+.flying-human { animation: fly-human .65s ease-out forwards; }
+.flying-bot { animation: fly-bot .65s ease-out forwards; }
+@keyframes fly-human {
+  from { transform: translateY(52vh) rotate(-6deg) scale(.9); opacity: .4; }
+  60% { opacity: 1; }
+  80% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; }
+  to { transform: translateY(0) rotate(0deg) scale(1); opacity: 0; }
+}
+@keyframes fly-bot {
+  from { transform: translateY(-42vh) rotate(6deg) scale(.9); opacity: .4; }
+  60% { opacity: 1; }
+  80% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; }
+  to { transform: translateY(0) rotate(0deg) scale(1); opacity: 0; }
+}
+/* Toast thông báo ngắn gọn: trượt xuống rồi đứng yên, App tự ẩn sau 3 giây. */
+.toast-notice { animation: toast-in .3s ease-out forwards; }
+@keyframes toast-in {
+  from { transform: translate(-50%, -12px); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
+}
 .card.red { color: #dc2626; }
 .card.selected { outline: 4px solid #facc15; transform: translateY(-8px); }
 .card-img { padding: 0; border: none; background: transparent; }
