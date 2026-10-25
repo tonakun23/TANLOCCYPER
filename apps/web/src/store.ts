@@ -87,6 +87,23 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     const names = [playerName.trim() || "Bạn"];
     for (let i = 1; i < playerCount; i++) names.push(`Bot ${i}`);
     const game = createGame({ playerCount, playerNames: names, allowTransfer });
+    // Vòng tấn đi NGƯỢC chiều kim đồng hồ, khớp vị trí trên bàn:
+    // Mình (dưới) -> Bot3 (phải) -> Bot1 (trên) -> Bot2 (trái) -> Mình.
+    // Nên thứ tự ghế phải là [Mình, Bot3, Bot1, Bot2]; engine tính người đỡ
+    // = người kế tiếp trong mảng players, nên xếp lại mảng rồi tính lại defender.
+    {
+      const byName = new Map(game.players.map((pl) => [pl.name, pl]));
+      const seatNames = playerCount === 4 ? [names[0], "Bot 3", "Bot 1", "Bot 2"]
+        : playerCount === 3 ? [names[0], "Bot 2", "Bot 1"] : [names[0], "Bot 1"];
+      const seated = seatNames.map((n) => byName.get(n)).filter((x): x is typeof game.players[number] => !!x);
+      if (seated.length === game.players.length) {
+        game.players = seated;
+        const ai = seated.findIndex((pl) => pl.id === game.attackerId);
+        const di = seated[(ai + 1) % seated.length];
+        game.defenderId = di.id;
+        game.defenderInitialHandCount = di.hand.length;
+      }
+    }
     set({ screen: "game", game: cloneGame(game), selected: null, humanAddPassed: false, chat: [{ id: Date.now(), from: "Hệ thống", text: "Chat trong ván này thôi, thoát ván là mất, không lưu lại." }], notice: `Ván mới: chất chủ ${game.trumpSuit}, ${game.players.find((p) => p.id === game.attackerId)?.name} tấn đầu.`, noticeKey: Date.now() });
     playDealSound();
     void get().runBots();

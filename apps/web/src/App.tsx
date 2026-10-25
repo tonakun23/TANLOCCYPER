@@ -293,7 +293,7 @@ export default function App() {
               <div className="flex justify-between items-center mb-3"><h2 className="font-bold text-lg">Hướng dẫn luật chơi Tấn (VN-8)</h2><button onClick={() => setHelpOpen(false)} aria-label="Đóng hướng dẫn"><X size={18} /></button></div>
               <p><b>Mục tiêu:</b> đánh hết bài trên tay trước khi nọc hết. Người cuối cùng còn bài trên tay là người thua ván.</p>
               <p className="mt-2"><b>Chia bài:</b> 2–4 người, mỗi người 8 lá, bộ Tây 52 lá không Joker. Lá cuối nọc lật ngửa làm chất chủ (ví dụ Cơ là chủ thì Cơ mạnh nhất).</p>
-              <p className="mt-2"><b>Người tấn đầu:</b> người có lá chủ nhỏ nhất. Sau đó tấn theo vòng, người vừa đỡ xong sẽ tấn tiếp.</p>
+              <p className="mt-2"><b>Người tấn đầu:</b> người có lá chủ nhỏ nhất. Sau đó tấn theo vòng ngược chiều kim đồng hồ: Mình → Bot 3 (phải) → Bot 1 (trên) → Bot 2 (trái) → Mình; người vừa đỡ xong sẽ tấn tiếp, người ngồi kế tiếp sau người tấn là người đỡ.</p>
               <p className="mt-2"><b>Tấn:</b> tấn 1 lá đầu, sau đó chỉ được thêm lá cùng hạng với lá đã có trên bàn. Một đợt tối đa 6 lá, và không vượt số lá người đỡ có lúc đợt bắt đầu.</p>
               <p className="mt-2"><b>Đỡ:</b> đỡ bằng lá cùng chất cao hơn, hoặc bằng lá chủ nếu lá tấn không phải chủ. Lá tấn là chủ thì chỉ đỡ bằng lá chủ cao hơn. Người đỡ có 30 giây, quanh avatar có vòng sáng đếm ngược, hết giờ tự lên bài.</p>
               <p className="mt-2"><b>Lên bài:</b> không đỡ được (hoặc muốn lên) thì bấm Lên bài, nhận hết bài trên bàn, mất lượt tấn tiếp theo.</p>
@@ -353,17 +353,17 @@ export default function App() {
           <span className="trump-ace-text">A CHỦ!</span>
         </div>
       )}
-      {/* Đối thủ đối diện nhau, vòng tấn đi theo chiều kim đồng hồ khớp luật:
-          Mình (dưới) -> Bot1 (trái) -> Bot2 (trên) -> Bot3 (phải) -> Mình.
+      {/* Đối thủ đối diện nhau, vòng tấn đi NGƯỢC chiều kim đồng hồ:
+          Mình (dưới) -> Bot3 (phải) -> Bot1 (trên) -> Bot2 (trái) -> Mình.
           Người đỡ luôn là người ngồi kế tiếp sau người tấn theo vòng này. */}
       <div className="flex-1 min-h-0 w-full relative flex flex-col">
         <TableCanvas game={game} />
         {game.players.filter((p) => p.id !== HUMAN_ID).map((p, idx) => {
-          const pos = ["absolute left-2 top-1/2 -translate-y-1/2", "absolute top-2 left-1/2 -translate-x-1/2", "absolute right-2 top-1/2 -translate-y-1/2"][idx] || "absolute top-2 left-1/2 -translate-x-1/2";
+          const pos = p.name === "Bot 3" ? "absolute right-2 top-1/2 -translate-y-1/2" : p.name === "Bot 2" ? "absolute left-2 top-1/2 -translate-y-1/2" : "absolute top-2 left-1/2 -translate-x-1/2";
           return (
             <div key={p.id} className={`${pos} z-20 flex items-center gap-2 bg-black/55 px-2 py-1 rounded-xl text-sm ${p.id === game.attackerId || p.id === game.defenderId ? "outline outline-yellow-400" : ""}`}>
               <div className="relative shrink-0" style={p.id === game.defenderId && isDefending ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
-                <img src={`/durak/ui/avatar_${(idx % 3) + 1}.png`} alt={p.name} className="w-[100px] h-[100px] rounded-full block" />
+                <img src={`/durak/ui/avatar_${(p.name.replace("Bot ", "") || "1")}.png`} alt={p.name} className="w-[100px] h-[100px] rounded-full block" />
                 {p.id === game.defenderId && isDefending && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-400 text-black font-black text-[11px] px-1.5 rounded-full border border-white">{defendSeconds}s</span>}
               </div>
               <div className="relative shrink-0">
@@ -377,7 +377,7 @@ export default function App() {
         {/* Hiệu ứng bốc bài: lá bay từ nọc giữa bàn tới góc người bốc */}
         {s.drawFlying && (() => {
           const opps = game.players.filter((p) => p.id !== HUMAN_ID);
-          const corner = s.drawFlying.toId === HUMAN_ID ? "bottom" : ["left", "top", "right"][opps.findIndex((p) => p.id === s.drawFlying!.toId)] || "top";
+          const corner = s.drawFlying.toId === HUMAN_ID ? "bottom" : (() => { const nm = opps.find((p) => p.id === s.drawFlying!.toId)?.name; return nm === "Bot 3" ? "right" : nm === "Bot 2" ? "left" : "top"; })();
           return (
             <div key={s.drawFlying.key} className={`flying-draw flying-draw-${corner}`}>
               {s.drawFlying.toId === HUMAN_ID ? <CardView card={parseCard(s.drawFlying.cardId)} /> : <img src="/durak/cards/back.png" alt="" className="w-[72px] h-[100px] rounded-[10px]" />}
