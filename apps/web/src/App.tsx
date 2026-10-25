@@ -63,16 +63,24 @@ export default function App() {
   }, [isDefending, game, s]);
   const defendFraction = defendSeconds / 30;
 
-  // Hết giờ tấn (lượt mình tấn mà chưa đánh): tự đánh lá thấp nhất, giữ 30 giây cũ.
-  const myAttackTurn = !!game && game.phase !== "FINISHED" && iAmAttacker && game.table.length === 0;
+  // Đồng hồ tấn: tính cả lúc tấn đầu (bàn trống) lẫn lúc thêm bài (mọi lá đã được đỡ).
+  // Lá tấn mới (số lá trên bàn tăng, hoặc vừa đỡ xong để tấn tiếp) thì reset về 30s.
+  // Hết giờ tấn thì hết lượt tấn: bàn trống -> chuyển lượt tấn cho người khác;
+  // đã tấn xong và đỡ hết -> tự kết thúc đợt.
+  const myAttackTurn = !!game && game.phase !== "FINISHED" && game.phase !== "DRAWING" && iAmAttacker && (game.table.length === 0 || allDefended);
+  const attackKey = myAttackTurn && game ? `${game.attackerId}-${game.table.length}-${allDefended}` : "";
+  useEffect(() => { if (attackKey) setSeconds(30); }, [attackKey]);
   useEffect(() => {
     if (!myAttackTurn) { setSeconds(30); return; }
     const id = setInterval(() => setSeconds((v) => {
-      if (v <= 1) { if (me) s.autoLowestAttack(); return 30; }
+      if (v <= 1) {
+        if (game) { if (game.table.length === 0) s.passAttack(); else if (allDefended) s.finishAttackAction(); }
+        return 30;
+      }
       return v - 1;
     }), 1000);
     return () => clearInterval(id);
-  }, [myAttackTurn, me, s]);
+  }, [myAttackTurn, game, allDefended, s]);
 
   const trumpMarker: Record<string, string> = { S: "spades", C: "clubs", H: "hearts", D: "diamonds" };
   // Phòng Tấn theo từng hạng — chỉ là điểm thưởng trong game, KHÔNG tiền thật.
@@ -295,7 +303,7 @@ export default function App() {
               <p className="mt-2"><b>Chia bài:</b> 2–4 người, mỗi người 8 lá, bộ Tây 52 lá không Joker. Lá cuối nọc lật ngửa làm chất chủ (ví dụ Cơ là chủ thì Cơ mạnh nhất).</p>
               <p className="mt-2"><b>Người tấn đầu:</b> người có lá chủ nhỏ nhất. Sau đó tấn theo vòng ngược chiều kim đồng hồ: Mình → Bot 3 (phải) → Bot 1 (trên) → Bot 2 (trái) → Mình; người vừa đỡ xong sẽ tấn tiếp, người ngồi kế tiếp sau người tấn là người đỡ.</p>
               <p className="mt-2"><b>Tấn:</b> tấn 1 lá đầu, sau đó chỉ được thêm lá cùng hạng với lá đã có trên bàn. Một đợt tối đa 6 lá, và không vượt số lá người đỡ có lúc đợt bắt đầu.</p>
-              <p className="mt-2"><b>Đỡ:</b> đỡ bằng lá cùng chất cao hơn, hoặc bằng lá chủ nếu lá tấn không phải chủ. Lá tấn là chủ thì chỉ đỡ bằng lá chủ cao hơn. Người đỡ có 30 giây, quanh avatar có vòng sáng đếm ngược, hết giờ tự lên bài.</p>
+              <p className="mt-2"><b>Đỡ:</b> đỡ bằng lá cùng chất cao hơn, hoặc bằng lá chủ nếu lá tấn không phải chủ. Lá tấn là chủ thì chỉ đỡ bằng lá chủ cao hơn. Người đỡ có 30 giây, quanh avatar có vòng sáng đếm ngược, hết giờ tự lên bài.</p><p className="mt-2"><b>Tấn cũng tính giờ:</b> người tấn có 30 giây, tấn lá mới thì reset lại 30 giây. Hết giờ tấn thì hết lượt tấn: chưa tấn lá nào thì chuyển lượt tấn cho người khác, đã tấn và đỡ hết thì tự kết thúc đợt.</p>
               <p className="mt-2"><b>Lên bài:</b> không đỡ được (hoặc muốn lên) thì bấm Lên bài, nhận hết bài trên bàn, mất lượt tấn tiếp theo.</p>
               <p className="mt-2"><b>Bốc bài:</b> đỡ thành công và kết thúc đợt thì mọi người bốc từng lá cho đủ 8 lá, theo thứ tự người tấn, người thêm, người đỡ cuối. Hết nọc thì ai hết bài trước là xong, người còn bài cuối cùng thua.</p>
               <p className="mt-2"><b>Nút trong ván:</b> Kết thúc đợt (người tấn chính, khi mọi lá đã được đỡ), Lên bài, Bốc bài (khi tới lượt bốc), Xếp bài (theo chất hoặc theo hạng, từ A xuống 2).</p>
@@ -356,7 +364,7 @@ export default function App() {
       {/* Đối thủ đối diện nhau, vòng tấn đi NGƯỢC chiều kim đồng hồ:
           Mình (dưới) -> Bot3 (phải) -> Bot1 (trên) -> Bot2 (trái) -> Mình.
           Người đỡ luôn là người ngồi kế tiếp sau người tấn theo vòng này. */}
-      <div className="flex-1 min-h-0 w-full relative flex flex-col">
+      <div className="w-full relative flex flex-col" style={{ height: 660, flexShrink: 0 }}>
         <TableCanvas game={game} />
         {game.players.filter((p) => p.id !== HUMAN_ID).map((p, idx) => {
           const pos = p.name === "Bot 3" ? "absolute right-2 top-1/2 -translate-y-1/2" : p.name === "Bot 2" ? "absolute left-2 top-1/2 -translate-y-1/2" : "absolute top-2 left-1/2 -translate-x-1/2";
@@ -399,7 +407,8 @@ export default function App() {
           </div>
         );
       })()}
-      <div className="text-center space-x-2 py-2 shrink-0 relative">
+      {/* Kéo nút + tay bài lên 190px: viền dưới bàn (660px, đáy ở 610px) nằm đúng giữa lá bài tay mình (tay từ 560-660, giữa 610). */}
+      <div className="text-center space-x-2 py-2 shrink-0 relative" style={{ marginTop: -190 }}>
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full" title="Bấm là tự xếp, bấm lại đổi kiểu" onClick={() => { const next = lastSort === "suit" ? "rank" : "suit"; s.sortHand(next); setLastSort(next); }}><span className="flex items-center gap-1"><ArrowDownWideNarrow size={16} /> Xếp bài</span></button>
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmAttacker && allDefended)} onClick={s.finishAttackAction}>Kết thúc đợt</button>
         <button className="bg-red-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmDefender && game.table.length > 0)} onClick={s.takeCards}>Lên bài</button>

@@ -36,7 +36,7 @@ interface GameStore {
   drawCards: () => Promise<void>; runDrawPhase: () => Promise<void>; sortHand: (mode: "suit" | "rank") => void;
   runBots: () => Promise<void>; addLog: (msg: string) => void;
   sendChat: (text: string) => void; clearNotice: () => void;
-  autoLowestAttack: () => void;
+  autoLowestAttack: () => void; passAttack: () => void;
 }
 
 // Lá mới xuất hiện trên bàn sau một nước đi (so với trước nước đi).
@@ -119,6 +119,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   runDrawPhase: async () => {},
   sortHand: () => {},
   autoLowestAttack: () => {},
+  passAttack: () => {},
 }));
 
 // Gán các action sau khi store tạo xong để tránh vòng tham chiếu trong create().
@@ -227,6 +228,22 @@ store.setState({
     const card = lowestCard(me.hand, game.trumpSuit);
     const before = tableIds(game);
     try { attack(game, HUMAN_ID, card.id); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); store.getState().addLog(`Hết giờ: tự đánh ${cardLabel(card)}.`); void store.getState().runBots(); } catch { /* bỏ qua */ }
+  },
+  passAttack: () => {
+    const { game } = store.getState(); if (!game || game.table.length > 0 || game.attackerId !== HUMAN_ID) return;
+    const seated = game.players; const oldDef = game.defenderId;
+    let ni = seated.findIndex((pl) => pl.id === oldDef);
+    let next = seated[ni];
+    for (let k = 0; k < seated.length; k++) { const cand = seated[(ni + k) % seated.length]; if (!cand.finished) { next = cand; ni = (ni + k) % seated.length; break; } }
+    game.attackerId = next.id;
+    let di = (ni + 1) % seated.length;
+    for (let k = 0; k < seated.length; k++) { const cand = seated[(di + k) % seated.length]; if (!cand.finished && cand.id !== next.id) { di = (di + k) % seated.length; break; } }
+    game.defenderId = seated[di].id;
+    game.defenderInitialHandCount = seated[di].hand.length;
+    game.version++;
+    store.setState({ game: cloneGame(game) });
+    store.getState().addLog(`Hết giờ tấn: hết lượt tấn, chuyển lượt tấn cho ${next.name}.`);
+    void store.getState().runBots();
   },
   runBots: async () => {
     const s = store.getState(); if (s.botBusy || !s.game || s.game.phase === "FINISHED") return;

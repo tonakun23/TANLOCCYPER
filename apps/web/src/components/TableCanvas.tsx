@@ -67,7 +67,8 @@ function drawTable(app: PIXI.Application, game: GameState, textures?: Map<string
   const w = app.screen.width, h = app.screen.height;
   const cx = w / 2, cy = h / 2;
   // Bàn mở rộng ra cho đầy khung (trước oval còn nhiều chỗ trống).
-  const rx = Math.min(560, w * 0.48), ry = Math.min(230, h * 0.44);
+  // Vòng bàn mở rộng ra ngoài + cao hơn, để viền dưới bàn chạm đúng giữa lá bài của mình (tay mình đè lên viền bàn, nửa trong nửa ngoài).
+  const rx = Math.min(620, w * 0.49), ry = Math.min(230, h * 0.48);
   // Bàn hình chữ nhật bo tròn 2 đầu (capsule): cạnh trên/dưới thẳng,
   // 2 đầu là nửa hình tròn, không còn oval tròn như trước.
   const table = new PIXI.Graphics();
