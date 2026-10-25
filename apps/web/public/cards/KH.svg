@@ -1,18 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280" width="200" height="280" role="img" aria-label="K♥">
-  <rect x="2" y="2" width="196" height="276" rx="16" fill="#ffffff" stroke="#9ca3af" stroke-width="2"/>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#e2e2e2"/></linearGradient></defs>
+  <rect x="2" y="2" width="196" height="276" rx="16" fill="url(#bg)" stroke="#9ca3af" stroke-width="2"/>
   <text x="20" y="36" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#c81e1e" text-anchor="middle">K</text>
-  <text x="20" y="62" font-family="Georgia,serif" font-size="22" fill="#c81e1e" text-anchor="middle">♥</text>
+  <g transform="translate(20,58) rotate(0) scale(0.198,0.220) translate(-50,-50)"><path d="M50 96 C24 70 4 50 12 30 C18 12 40 12 50 32 C60 12 82 12 88 30 C96 50 76 70 50 96 Z" fill="#c81e1e"/></g>
   <g transform="rotate(180 180 244)">
     <text x="180" y="244" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#c81e1e" text-anchor="middle">K</text>
-    <text x="180" y="270" font-family="Georgia,serif" font-size="22" fill="#c81e1e" text-anchor="middle">♥</text>
+    <g transform="translate(180,270) rotate(0) scale(0.198,0.220) translate(-50,-50)"><path d="M50 96 C24 70 4 50 12 30 C18 12 40 12 50 32 C60 12 82 12 88 30 C96 50 76 70 50 96 Z" fill="#c81e1e"/></g>
   </g>
   <defs><clipPath id="clip"><rect x="36" y="54" width="128" height="172" rx="8"/></clipPath></defs><rect x="36" y="54" width="128" height="172" rx="8" fill="#fdf6e3" stroke="#c81e1e" stroke-width="3"/>
     <g clip-path="url(#clip)"><g id="fig">
+      <rect x="58" y="58" width="84" height="164" fill="#fdf6e3" opacity="0.35"/>
       <polygon points="80,88 120,88 114,62 107,76 100,60 93,76 86,62" fill="#facc15" stroke="#92400e" stroke-width="1.5"/>
+      <circle cx="94" cy="68" r="2.5" fill="#c81e1e"/><circle cx="100" cy="66" r="2.5" fill="#1e3a8a"/><circle cx="106" cy="68" r="2.5" fill="#c81e1e"/>
+      <path d="M86,98 Q84,120 92,126 L108,126 Q116,120 114,98 Q108,90 100,90 Q92,90 86,98 Z" fill="#d1d5db"/>
       <circle cx="100" cy="104" r="17" fill="#f2c9a0" stroke="#111" stroke-width="1"/>
       <circle cx="94" cy="102" r="1.8" fill="#111"/><circle cx="106" cy="102" r="1.8" fill="#111"/>
-      <path d="M88,112 Q100,128 112,112 L112,122 Q100,134 88,122 Z" fill="#e5e7eb"/>
-      <path d="M68,128 L132,128 L142,170 L58,170 Z" fill="#1e3a8a" stroke="#111" stroke-width="1"/>
-      <text x="100" y="156" font-family="Georgia,serif" font-size="26" fill="#facc15" text-anchor="middle">♥</text>
+      <path d="M94,112 Q100,116 106,112" fill="none" stroke="#111" stroke-width="1"/>
+      <path d="M68,128 L132,128 L142,170 L58,170 Z" fill="#111111" stroke="#111" stroke-width="1"/>
+      <polygon points="68,128 100,152 132,128 132,140 100,164 68,140" fill="#facc15" opacity="0.85"/>
+      <circle cx="100" cy="148" r="14" fill="#ffffff" stroke="#facc15" stroke-width="2"/>
+      <g transform="translate(100,148) rotate(0) scale(0.252,0.280) translate(-50,-50)"><path d="M50 96 C24 70 4 50 12 30 C18 12 40 12 50 32 C60 12 82 12 88 30 C96 50 76 70 50 96 Z" fill="#c81e1e"/></g>
     </g><use href="#fig" transform="rotate(180 100 140)"/></g>
 </svg>

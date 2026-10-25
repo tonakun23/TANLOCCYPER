@@ -1,11 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280" width="200" height="280" role="img" aria-label="2♥">
-  <rect x="2" y="2" width="196" height="276" rx="16" fill="#ffffff" stroke="#9ca3af" stroke-width="2"/>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#e2e2e2"/></linearGradient></defs>
+  <rect x="2" y="2" width="196" height="276" rx="16" fill="url(#bg)" stroke="#9ca3af" stroke-width="2"/>
   <text x="20" y="36" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#c81e1e" text-anchor="middle">2</text>
-  <text x="20" y="62" font-family="Georgia,serif" font-size="22" fill="#c81e1e" text-anchor="middle">♥</text>
+  <g transform="translate(20,58) rotate(0) scale(0.198,0.220) translate(-50,-50)"><path d="M50 96 C24 70 4 50 12 30 C18 12 40 12 50 32 C60 12 82 12 88 30 C96 50 76 70 50 96 Z" fill="#c81e1e"/></g>
   <g transform="rotate(180 180 244)">
     <text x="180" y="244" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#c81e1e" text-anchor="middle">2</text>
-    <text x="180" y="270" font-family="Georgia,serif" font-size="22" fill="#c81e1e" text-anchor="middle">♥</text>
+    <g transform="translate(180,270) rotate(0) scale(0.198,0.220) translate(-50,-50)"><path d="M50 96 C24 70 4 50 12 30 C18 12 40 12 50 32 C60 12 82 12 88 30 C96 50 76 70 50 96 Z" fill="#c81e1e"/></g>
   </g>
-  <text x="100" y="85" font-family="Georgia,serif" font-size="34" fill="#c81e1e" text-anchor="middle" dominant-baseline="middle">♥</text>
-    <text x="100" y="195" font-family="Georgia,serif" font-size="34" fill="#c81e1e" text-anchor="middle" dominant-baseline="middle" transform="rotate(180 100 195)">♥</text>
+  <g transform="translate(100,85) rotate(0) scale(0.306,0.340) translate(-50,-50)"><path d="M50 96 C24 70 4 50 12 30 C18 12 40 12 50 32 C60 12 82 12 88 30 C96 50 76 70 50 96 Z" fill="#c81e1e"/></g>
+    <g transform="translate(100,195) rotate(180) scale(0.306,0.340) translate(-50,-50)"><path d="M50 96 C24 70 4 50 12 30 C18 12 40 12 50 32 C60 12 82 12 88 30 C96 50 76 70 50 96 Z" fill="#c81e1e"/></g>
 </svg>
