@@ -1,6 +1,7 @@
-# Render Blueprint cho Tấn Online — bản web chơi với bot (static site).
-# Sau khi kết nối Render, Render sẽ đọc file này từ repo tonakun23/TANLOCCYPER, nhánh main.
-# Chưa có server online thật (Colyseus/NestJS) nên chưa deploy backend ở đây.
+# Render Blueprint cho Tấn Online.
+# - tanloccyper-web: bản web chơi với bot (static site).
+# - tanloccyper-api: backend tối thiểu (REST, server-authoritative, luật VN-8,
+#   phòng trong RAM, chưa có Postgres/Redis/JWT/WebSocket — xem apps/game-server/server.js).
 services:
   - type: web
     name: tanloccyper-web
@@ -11,3 +12,11 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
+  - type: web
+    name: tanloccyper-api
+    env: node
+    plan: free
+    region: singapore
+    buildCommand: npm --prefix apps/game-server install
+    startCommand: node apps/game-server/server.js
+    healthCheckPath: /health
