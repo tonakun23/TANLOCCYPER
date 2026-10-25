@@ -3,6 +3,8 @@ import { useGameStore, HUMAN_ID } from "./store";
 import { CardView } from "./components/CardView";
 import { TableCanvas } from "./components/TableCanvas";
 import { parseCard, SUIT_NAME, SUIT_SYMBOL } from "../../../packages/game-core/src/engine";
+import { X, Menu, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, } from "lucide-react";
+const ic = { size: 22, strokeWidth: 2 };
 
 export default function App() {
   const s = useGameStore();
@@ -80,60 +82,129 @@ export default function App() {
     const first = rooms[tier][0];
     setRooms((r) => ({ ...r, [tier]: [{ id, bet: first.bet, players: 1, min: first.min }, ...r[tier]] }));
   };
+  // Màn Tạo phòng (ảnh mẫu): slider mức điểm, chọn số người, nút TẠO PHÒNG.
+  const BET_LEVELS = ["5K", "20K", "50K", "100K", "200K", "500K", "1M"];
+  const BET_MINS: Record<string, string> = { "5K": "50K", "20K": "200K", "50K": "500K", "100K": "1M", "200K": "2M", "500K": "5M", "1M": "6M" };
+  const BET_TIERS: Record<string, string> = { "5K": "tap-su", "20K": "tap-su", "50K": "nghiep-du", "100K": "nghiep-du", "200K": "chuyen-nghiep", "500K": "chuyen-nghiep", "1M": "master" };
+  const [betIdx, setBetIdx] = useState(0);
+  const [createCount, setCreateCount] = useState(4);
+  const submitCreateRoom = () => {
+    const id = 148000 + Math.floor(Math.random() * 899);
+    const bet = BET_LEVELS[betIdx];
+    if (s.createPrivate) {
+      // Phòng riêng chơi với bạn: tạo mã phòng, vào ván luôn, mã hiện góc phải trong ván.
+      s.setRoomCode(String(id));
+      s.setPlayerCount(createCount);
+      s.startGame();
+    } else {
+      const t = BET_TIERS[bet];
+      setTier(t);
+      setRooms((r) => ({ ...r, [t]: [{ id, bet, players: 1, min: BET_MINS[bet] }, ...r[t]] }));
+      s.goToRooms();
+    }
+  };
   const homeTop = (
     <div className="tan-top">
       <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
-        <button className="tan-icon" onClick={s.backToLobby}>✕</button>
-        <button className="tan-icon">☰</button>
+        <button className="tan-icon" onClick={s.backToLobby} aria-label="Đóng"><X {...ic} /></button>
+        <button className="tan-icon" aria-label="Menu"><Menu {...ic} /></button>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <div className="tan-avatar">{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>
         <div>
           <input className="bg-transparent font-bold outline-none" style={{ fontSize: "clamp(14px, 3.2vh, 22px)", width: 140 }} value={s.playerName} onChange={(e) => s.setPlayerName(e.target.value)} aria-label="Tên của bạn" />
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700 }}>♠ TẤN ONLINE · VN-8 · 2–4 người</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700 }}>TẤN ONLINE · VN-8 · 2–4 người</div>
         </div>
       </div>
       <div className="tan-shop">
         <span className="tan-shop-label">CỬA HÀNG</span>
-        <span className="tan-coins"><span className="tan-coin">◎</span> 6,417,098</span>
+        <span className="tan-coins"><img src="/icons/coin-gold.png" alt="Xu" style={{ width: "min(7vh, 44px)", height: "min(7vh, 44px)" }} /> 6,417,098</span>
       </div>
       <div style={{ display: "flex", gap: 12 }}>
-        <button className="tan-icon">👥</button>
-        <button className="tan-icon">?</button>
-        <button className="tan-icon">⚙️</button>
+        <button className="tan-icon" aria-label="Bạn bè"><Users {...ic} /></button>
+        <button className="tan-icon" aria-label="Trợ giúp"><HelpCircle {...ic} /></button>
+        <button className="tan-icon" aria-label="Cài đặt"><Settings {...ic} /></button>
       </div>
     </div>
   );
   const homeBottom = (
     <div className="tan-bottom">
       <div className="tan-bottom-group">
-        <button className="tan-bottom-btn"><span className="circle">👤+</span></button>
-        <button className="tan-bottom-btn"><span className="circle">🏆</span></button>
-        <button className="tan-bottom-btn"><span className="circle">🎁</span><span className="tan-badge">10</span></button>
-        <button className="tan-bottom-btn"><span className="circle">📋</span></button>
+        <button className="tan-bottom-btn"><span className="circle"><UserPlus {...ic} /></span></button>
+        <button className="tan-bottom-btn"><span className="circle"><Trophy {...ic} /></span></button>
+        <button className="tan-bottom-btn"><span className="circle"><Gift {...ic} /></span><span className="tan-badge">10</span></button>
+        <button className="tan-bottom-btn"><span className="circle"><ClipboardList {...ic} /></span></button>
       </div>
       <button className="tan-spin">SPIN</button>
       <div className="tan-bottom-group">
         <button className="tan-bottom-btn"><span className="circle">f</span></button>
-        <button className="tan-bottom-btn"><span className="circle">👥</span></button>
-        <button className="tan-bottom-btn"><span className="circle">🎒</span></button>
+        <button className="tan-bottom-btn"><span className="circle"><Users {...ic} /></span></button>
+        <button className="tan-bottom-btn"><span className="circle"><Backpack {...ic} /></span></button>
         <button className="tan-choose" onClick={s.goToRooms}>CHỌN<br />BÀN</button>
       </div>
     </div>
   );
+  if (s.screen === "create") {
+    const pct = BET_LEVELS.length > 1 ? (betIdx / (BET_LEVELS.length - 1)) * 100 : 0;
+    return (
+      <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
+        <div className="tan-rooms-top">
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
+            <button className="tan-icon" onClick={s.backToLobby} aria-label="Đóng"><X size={22} /></button>
+            <button className="tan-icon" aria-label="Menu"><Menu size={22} /></button>
+          </div>
+          <h1 style={{ margin: "0 auto", fontSize: "clamp(20px, 5vh, 34px)", letterSpacing: 1, color: "#fef3c7" }}>TẠO PHÒNG CHƠI</h1>
+          <button className="tan-icon" onClick={s.backToLobby} aria-label="Đóng"><X size={22} /></button>
+        </div>
+        <div style={{ padding: "min(4vh, 28px) min(6vw, 60px) 0" }}>
+          <p style={{ fontSize: "clamp(15px, 3.4vh, 22px)", color: "#fef3c7", marginBottom: 12 }}>
+            Mức điểm: {s.createPrivate ? " (phòng riêng chơi với bạn)" : ""}
+          </p>
+          <div style={{ background: "rgba(0,0,0,.3)", border: "1px solid rgba(239,68,68,.5)", borderRadius: 12, padding: "min(3vh, 20px) min(3vw, 24px)" }}>
+            <div style={{ textAlign: "center", marginBottom: 12 }}>
+              <span style={{ background: "#9f1239", padding: "8px 28px", borderRadius: 8, fontWeight: 900, fontSize: "clamp(15px, 3.4vh, 22px)" }}>{BET_LEVELS[betIdx]}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <button className="tan-icon" style={{ background: "#9f1239" }} onClick={() => setBetIdx((v) => Math.max(0, v - 1))} aria-label="Giảm mức điểm"><Minus size={22} /></button>
+              <div style={{ flex: 1, position: "relative", height: 40, display: "flex", alignItems: "center" }}>
+                <div style={{ position: "absolute", left: 0, right: 0, height: 10, borderRadius: 99, background: "rgba(0,0,0,.6)" }} />
+                <div style={{ position: "absolute", left: 0, width: `${pct}%`, height: 10, borderRadius: 99, background: "#f59e0b" }} />
+                <img src="/icons/chip-gold.png" alt="Chip" style={{ position: "absolute", left: `calc(${pct}% - 20px)`, width: 40, height: 40 }} />
+              </div>
+              <button className="tan-icon" style={{ background: "#9f1239" }} onClick={() => setBetIdx((v) => Math.min(BET_LEVELS.length - 1, v + 1))} aria-label="Tăng mức điểm"><Plus size={22} /></button>
+            </div>
+            <p style={{ textAlign: "center", color: "rgba(255,255,255,.7)", fontSize: 13, marginTop: 8 }}>Tối thiểu vào phòng: {BET_MINS[BET_LEVELS[betIdx]]} điểm · Điểm chỉ là điểm thưởng, không tiền thật</p>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 24, marginTop: "min(6vh, 40px)", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "clamp(15px, 3.4vh, 22px)", color: "#fef3c7" }}>Số người:</span>
+            {[2, 3, 4].map((n) => (
+              <button key={n} onClick={() => setCreateCount(n)} style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: "clamp(16px, 3.6vh, 24px)", fontWeight: 700 }}>
+                <span style={{ width: 34, height: 34, borderRadius: "50%", background: createCount === n ? "#f59e0b" : "rgba(0,0,0,.5)", border: "2px solid rgba(255,255,255,.3)" }} />
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ flex: 1 }} />
+        <div style={{ textAlign: "center", paddingBottom: "min(6vh, 40px)" }}>
+          <button className="tan-pill" style={{ background: "#2f9e8f", color: "#fff", fontSize: "clamp(15px, 3.4vh, 22px)" }} onClick={submitCreateRoom}>TẠO PHÒNG</button>
+        </div>
+      </div>
+    );
+  }
   if (s.screen === "rooms") {
     return (
       <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
         <div className="tan-rooms-top">
           <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
-            <button className="tan-icon" onClick={s.backToLobby}>✕</button>
-            <button className="tan-icon">☰</button>
+            <button className="tan-icon" onClick={s.backToLobby} aria-label="Đóng"><X {...ic} /></button>
+            <button className="tan-icon" aria-label="Menu"><Menu {...ic} /></button>
           </div>
           <div style={{ margin: "0 auto", display: "flex", gap: 12 }}>
             <button className="tan-pill orange">CHƠI NGAY</button>
-            <button className="tan-pill green" onClick={createRoom}>TẠO PHÒNG</button>
+            <button className="tan-pill green" onClick={() => s.goToCreate(false)}>TẠO PHÒNG</button>
           </div>
-          <button className="tan-icon" onClick={s.backToLobby}>⌂</button>
+          <button className="tan-icon" onClick={s.backToLobby} aria-label="Về trang chủ"><Home {...ic} /></button>
         </div>
         <div className="tan-table">
           <div className="tan-head"><span>Phòng</span><span>Mức điểm</span><span>Số người</span><span>Tối thiểu</span><span>Trạng thái</span></div>
@@ -173,16 +244,14 @@ export default function App() {
             <div className="tan-fan">
               <img src="/durak/cards/AS.png" alt="A bích" /><img src="/durak/cards/AD.png" alt="A rô" /><img src="/durak/cards/AC.png" alt="A chuồn" /><img src="/durak/cards/AH.png" alt="A cơ" />
             </div>
-            <div className="tan-chips">
-              <span className="tan-chip" style={{ background: "#dc2626" }}>●</span><span className="tan-chip" style={{ background: "#f8fafc", color: "#111" }}>●</span><span className="tan-chip" style={{ background: "#f97316" }}>●</span><span className="tan-chip" style={{ background: "#1f2937" }}>●</span>
-            </div>
+            <img src="/icons/chips-stack.png" alt="Chip bài" style={{ position: "absolute", bottom: "22%", left: "50%", transform: "translateX(-50%)", width: "min(22vw, 30vh)" }} />
             <h2>CHƠI NGAY</h2>
           </button>
-          <button className="tan-play" onClick={s.goToRooms}>
+          <button className="tan-play" onClick={() => s.goToCreate(true)}>
             <div className="tan-fan">
               <img src="/durak/cards/KS.png" alt="K bích" /><img src="/durak/cards/QD.png" alt="Q rô" /><img src="/durak/cards/JC.png" alt="J chuồn" /><img src="/durak/cards/AH.png" alt="A cơ" />
             </div>
-            <div style={{ position: "absolute", bottom: "26%", right: "14%", width: "min(11vw, 17vh)", height: "min(11vw, 17vh)", minWidth: 54, minHeight: 54, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, #fde68a, #f59e0b 60%, #b45309)", border: "5px dashed #7c2d12", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "min(5vh, 32px)", fontWeight: 900, color: "#7c2d12" }}>◎</div>
+            <img src="/icons/chip-gold.png" alt="Chip vàng" style={{ position: "absolute", bottom: "26%", right: "14%", width: "min(11vw, 17vh)", minWidth: 54 }} />
             <h2>CHƠI VỚI BẠN</h2>
           </button>
         </div>
@@ -212,13 +281,14 @@ export default function App() {
         <span className="flex items-center gap-3">
           <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 text-xl" title="Về sảnh" onClick={s.backToLobby}>×</button>
           <span>{game.phase === "FINISHED" ? "Ván đã kết thúc" : `${game.players.find((p) => p.id === game.attackerId)?.name} tấn · ${game.players.find((p) => p.id === game.defenderId)?.name} đỡ`}</span>
-          {myTurn && <span>⏱ {seconds}s</span>}
+          {myTurn && <span className="flex items-center gap-1"><Timer size={18} /> {seconds}s</span>}
           <span className="flex items-center gap-1">Chủ: {SUIT_NAME[game.trumpSuit]} <img src={`/durak/ui/trump_marker_${trumpMarker[game.trumpSuit]}.png`} alt={SUIT_NAME[game.trumpSuit]} className="w-6 h-6" /></span>
           <span>Nọc: {game.drawPile.length} lá</span>
         </span>
-        <span className="flex gap-2">
-          <button className="px-4 h-9 rounded-full bg-red-900 border border-white/30 text-sm" onClick={() => setChatOpen((v) => !v)}>💬 Chat{s.chat.length > 1 ? ` (${s.chat.length - 1})` : ""}</button>
-          <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 text-xs" title="Cài đặt chưa làm trong bản bot">Menu</button>
+        <span className="flex gap-2 items-center">
+          {s.roomCode && <span className="bg-yellow-400 text-black font-bold px-3 h-9 rounded-full flex items-center text-sm">Mã phòng: {s.roomCode}</span>}
+          <button className="px-4 h-9 rounded-full bg-red-900 border border-white/30 text-sm" onClick={() => setChatOpen((v) => !v)}><span className="flex items-center gap-1"><MessageCircle size={18} /> Chat{s.chat.length > 1 ? ` (${s.chat.length - 1})` : ""}</span></button>
+          <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 flex items-center justify-center" title="Cài đặt chưa làm trong bản bot"><Settings size={18} /></button>
         </span>
       </div>
       {/* Toast thông báo ngắn gọn, thay khung log dài cũ (đã bỏ). */}
@@ -233,11 +303,17 @@ export default function App() {
           <CardView card={parseCard(s.flying.cardId)} />
         </div>
       )}
-      <div className="flex gap-2 justify-center py-2 flex-wrap shrink-0">
+      <div className="flex gap-3 justify-center py-1 flex-wrap shrink-0">
         {game.players.filter((p) => p.id !== HUMAN_ID).map((p, idx) => (
-          <div key={p.id} className={`flex items-center gap-2 bg-black/40 px-3 py-1 rounded-xl text-sm ${p.id === game.attackerId || p.id === game.defenderId ? "outline outline-yellow-400" : ""}`}>
-            <img src={`/durak/ui/avatar_${(idx % 3) + 1}.png`} alt={p.name} className="w-8 h-8 rounded-full" />
-            <span>{p.name} {p.id === game.attackerId ? "⚔️ tấn" : ""} {p.id === game.defenderId ? "🛡️ đỡ" : ""} {p.finished ? "✅ xong" : ""} · {p.hand.length} lá</span>
+          <div key={p.id} className={`flex items-center gap-2 bg-black/40 pl-1 pr-3 py-1 rounded-xl text-sm ${p.id === game.attackerId || p.id === game.defenderId ? "outline outline-yellow-400" : ""}`}>
+            {/* Avatar nằm trái, thẳng hàng với bộ bài úp của đúng người đó */}
+            <img src={`/durak/ui/avatar_${(idx % 3) + 1}.png`} alt={p.name} className="w-11 h-11 rounded-full shrink-0" />
+            <div className="flex items-center">
+              {p.hand.map((_, j) => (
+                <img key={j} src="/durak/cards/back.png" alt="" className={`w-7 h-10 rounded ${j === 0 ? "" : "-ml-3"}`} />
+              ))}
+            </div>
+            <span className="whitespace-nowrap flex items-center gap-1">{p.name} {p.id === game.attackerId ? <Swords size={15} /> : null} {p.id === game.defenderId ? <Shield size={15} /> : null} {p.finished ? <Check size={15} /> : null} · <b>{p.hand.length} lá</b></span>
           </div>
         ))}
       </div>
@@ -249,7 +325,11 @@ export default function App() {
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(game.table.length > 0 && !iAmDefender)} onClick={s.passAdd}>Không thêm nữa</button>
         <button className="bg-yellow-400 text-black font-semibold px-4 py-2 rounded-full" onClick={s.backToLobby}>Ván mới</button>
       </div>
-      <div className="flex justify-center flex-wrap shrink-0 px-2 pb-2">
+      <div className="flex justify-center items-center flex-wrap shrink-0 px-2 pb-2 gap-2">
+        <div className="flex items-center gap-2 bg-black/40 pl-1 pr-3 py-1 rounded-xl text-sm shrink-0">
+          <div className="tan-avatar" style={{ width: 44, height: 44, fontSize: 20 }}>{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>
+          <span className="whitespace-nowrap">{s.playerName || "Bạn"} · <b>{me?.hand.length ?? 0} lá</b></span>
+        </div>
         {me?.hand.map((c, i) => (
           <div key={c.id} className={i === 0 ? "" : "-ml-6"}>
             <CardView card={c} selected={s.selected === c.id} onClick={() => s.playCard(c.id)} />
@@ -261,8 +341,8 @@ export default function App() {
       {chatOpen && (
         <div className="absolute bottom-2 right-2 z-50 w-80 max-w-[92vw] bg-black/90 border border-yellow-400/60 rounded-2xl overflow-hidden shadow-2xl">
           <div className="flex justify-between items-center px-3 py-2 bg-red-950 font-semibold text-sm">
-            <span>💬 Chat trong ván</span>
-            <button onClick={() => setChatOpen(false)}>×</button>
+            <span className="flex items-center gap-1"><MessageCircle size={16} /> Chat trong ván</span>
+            <button onClick={() => setChatOpen(false)} aria-label="Đóng chat"><X size={18} /></button>
           </div>
           <div className="h-56 overflow-auto p-3 space-y-2 text-sm">
             {s.chat.map((m) => (

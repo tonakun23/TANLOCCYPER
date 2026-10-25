@@ -74,14 +74,9 @@ function drawTable(app: PIXI.Application, game: GameState, textures?: Map<string
   app.stage.addChild(table);
   const info = new PIXI.Text({ text: `Chủ: ${SUIT_NAME[game.trumpSuit]} ${SUIT_SYMBOL[game.trumpSuit]}  •  Bỏ: ${game.discardPile.length}`, style: { fontSize: 18, fill: 0xfde68a } });
   info.x = cx - info.width / 2; info.y = cy - ry - 28; app.stage.addChild(info);
-  // Đối thủ: mặt sau bài ở phía trên, dàn đều theo chiều rộng màn hình
-  const opps = game.players.filter((p) => p.id !== HUMAN_ID);
-  opps.forEach((p, i) => {
-    const baseX = w * (i + 1) / (opps.length + 1) - 40;
-    const name = new PIXI.Text({ text: `${p.name} (${p.hand.length} lá)`, style: { fontSize: 16, fill: 0xffffff } });
-    name.x = baseX; name.y = 12; app.stage.addChild(name);
-    p.hand.slice(0, 5).forEach((_, j) => drawCard(app.stage, baseX + j * 18, 36, null, true, textures));
-  });
+  // Đối thủ KHÔNG vẽ ở đây nữa: App vẽ dải avatar + bài úp cho từng người,
+  // để avatar nằm trái, thẳng hàng với đúng bộ bài của người đó + số lá.
+  void w; void textures;
   // Nọc ở giữa bàn, bên trái: lá chủ ngửa ở dưới, chồng bài úp đè lên trên.
   const pileX = Math.max(12, cx - rx - 92), pileY = cy - 44;
   if (game.drawPile.length > 0) {
