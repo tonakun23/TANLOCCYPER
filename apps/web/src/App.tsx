@@ -3,7 +3,7 @@ import { useGameStore, HUMAN_ID } from "./store";
 import { CardView } from "./components/CardView";
 import { TableCanvas } from "./components/TableCanvas";
 import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, cardLabel } from "../../../packages/game-core/src/engine";
-import { X, Menu, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, ArrowDownWideNarrow, } from "lucide-react";
+import { X, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, ArrowDownWideNarrow, } from "lucide-react";
 import { playDealSound, playCardSound, setSoundEnabled, setSoundVolume } from "./game/sound";
 const ic = { size: 22, strokeWidth: 2 };
 
@@ -167,10 +167,6 @@ export default function App() {
     return (
       <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
         <div className="tan-rooms-top">
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
-            <button className="tan-icon" onClick={s.backToLobby} aria-label="Đóng"><X size={22} /></button>
-            <button className="tan-icon" style={{ cursor: "default" }} aria-label="Menu"><Menu size={22} /></button>
-          </div>
           <h1 style={{ margin: "0 auto", fontSize: "clamp(20px, 5vh, 34px)", letterSpacing: 1, color: "#fef3c7" }}>TẠO PHÒNG CHƠI</h1>
           <button className="tan-icon" onClick={s.backToLobby} aria-label="Đóng"><X size={22} /></button>
         </div>
@@ -214,10 +210,6 @@ export default function App() {
     return (
       <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
         <div className="tan-rooms-top">
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
-            <button className="tan-icon" onClick={s.backToLobby} aria-label="Đóng"><X {...ic} /></button>
-            <button className="tan-icon" style={{ cursor: "default" }} aria-label="Menu"><Menu {...ic} /></button>
-          </div>
           <div style={{ margin: "0 auto", display: "flex", gap: 12 }}>
             <button className="tan-pill orange">CHƠI NGAY</button>
             <button className="tan-pill green" onClick={() => s.goToCreate(false)}>TẠO PHÒNG</button>
@@ -340,13 +332,13 @@ export default function App() {
           <CardView card={parseCard(s.flying.cardId)} />
         </div>
       )}
-      {/* Đối thủ đối diện nhau quanh bàn (không xếp 4 góc nữa): 1 đối thủ = trên giữa
-          (đối diện mình), 2 đối thủ = trái giữa + phải giữa (đối diện nhau),
-          3 đối thủ = trên + trái + phải. Mỗi đối thủ chỉ 1 lá úp + badge số lá. */}
+      {/* Đối thủ đối diện nhau, vòng tấn đi theo chiều kim đồng hồ khớp luật:
+          Mình (dưới) -> Bot1 (trái) -> Bot2 (trên) -> Bot3 (phải) -> Mình.
+          Người đỡ luôn là người ngồi kế tiếp sau người tấn theo vòng này. */}
       <div className="flex-1 min-h-0 w-full relative flex flex-col">
         <TableCanvas game={game} />
         {game.players.filter((p) => p.id !== HUMAN_ID).map((p, idx) => {
-          const pos = ["absolute top-2 left-1/2 -translate-x-1/2", "absolute left-2 top-1/2 -translate-y-1/2", "absolute right-2 top-1/2 -translate-y-1/2"][idx] || "absolute top-2 left-1/2 -translate-x-1/2";
+          const pos = ["absolute left-2 top-1/2 -translate-y-1/2", "absolute top-2 left-1/2 -translate-x-1/2", "absolute right-2 top-1/2 -translate-y-1/2"][idx] || "absolute top-2 left-1/2 -translate-x-1/2";
           return (
             <div key={p.id} className={`${pos} z-20 flex items-center gap-2 bg-black/55 px-2 py-1 rounded-xl text-sm ${p.id === game.attackerId || p.id === game.defenderId ? "outline outline-yellow-400" : ""}`}>
               <div className="relative shrink-0" style={p.id === game.defenderId && isDefending ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
@@ -364,7 +356,7 @@ export default function App() {
         {/* Hiệu ứng bốc bài: lá bay từ nọc giữa bàn tới góc người bốc */}
         {s.drawFlying && (() => {
           const opps = game.players.filter((p) => p.id !== HUMAN_ID);
-          const corner = s.drawFlying.toId === HUMAN_ID ? "bottom" : ["top", "left", "right"][opps.findIndex((p) => p.id === s.drawFlying!.toId)] || "top";
+          const corner = s.drawFlying.toId === HUMAN_ID ? "bottom" : ["left", "top", "right"][opps.findIndex((p) => p.id === s.drawFlying!.toId)] || "top";
           return (
             <div key={s.drawFlying.key} className={`flying-draw flying-draw-${corner}`}>
               {s.drawFlying.toId === HUMAN_ID ? <CardView card={parseCard(s.drawFlying.cardId)} /> : <img src="/durak/cards/back.png" alt="" className="w-[72px] h-[100px] rounded-[10px]" />}

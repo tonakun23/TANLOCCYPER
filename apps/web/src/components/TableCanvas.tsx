@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import * as PIXI from "pixi.js";
-import { SUIT_SYMBOL, RANK_LABEL, SUIT_NAME } from "../../../../packages/game-core/src/engine";
+import { SUIT_SYMBOL, RANK_LABEL } from "../../../../packages/game-core/src/engine";
 import type { Card, GameState } from "../../../../packages/game-core/src/engine";
 import { HUMAN_ID } from "../store";
 
@@ -68,18 +68,20 @@ function drawTable(app: PIXI.Application, game: GameState, textures?: Map<string
   const cx = w / 2, cy = h / 2;
   // Bàn mở rộng ra cho đầy khung (trước oval còn nhiều chỗ trống).
   const rx = Math.min(560, w * 0.48), ry = Math.min(230, h * 0.44);
+  // Bàn hình chữ nhật bo tròn 2 đầu (capsule): cạnh trên/dưới thẳng,
+  // 2 đầu là nửa hình tròn, không còn oval tròn như trước.
   const table = new PIXI.Graphics();
-  table.ellipse(cx, cy, rx, ry);
+  table.roundRect(cx - rx, cy - ry, rx * 2, ry * 2, ry);
   table.fill(0x2e7d32);
   table.stroke({ color: 0xfacc15, width: 4 });
   app.stage.addChild(table);
-  const info = new PIXI.Text({ text: `Chủ: ${SUIT_NAME[game.trumpSuit]} ${SUIT_SYMBOL[game.trumpSuit]}  •  Bỏ: ${game.discardPile.length}`, style: { fontSize: 18, fill: 0xfde68a } });
-  info.x = cx - info.width / 2; info.y = cy - ry - 28; app.stage.addChild(info);
+  // Đã bỏ dòng chữ ở đầu bàn (Chủ / Bỏ) vì nó che tầm nhìn chỗ bot trên cùng.
+  // Chất chủ vẫn nhận biết được qua lá chủ lật ngửa dưới nọc + dòng Chủ ở header trên cùng.
   // Đối thủ KHÔNG vẽ ở đây nữa: App vẽ dải avatar + bài úp cho từng người,
   // để avatar nằm trái, thẳng hàng với đúng bộ bài của người đó + số lá.
   void w; void textures;
-  // Nọc ở GIỮA bàn (trong oval, phía trái giữa): lá chủ ngửa ở dưới, chồng bài úp đè lên trên.
-  const pileX = cx - rx + 16, pileY = cy - 44;
+  // Nọc ở góc trên trái trong bàn (không còn ở giữa trái, tránh bị bài bot trái đè lên).
+  const pileX = cx - rx + 16, pileY = cy - ry + 16;
   if (game.drawPile.length > 0) {
     const trump = game.drawPile.find((c) => c.id === game.trumpCardId) || game.drawPile[game.drawPile.length - 1];
     drawCard(app.stage, pileX, pileY, trump, false, textures);
@@ -87,8 +89,7 @@ function drawTable(app: PIXI.Application, game: GameState, textures?: Map<string
     for (let j = 0; j < backs; j++) drawCard(app.stage, pileX + 6 + j * 3, pileY - 4 - j * 2, null, true, textures);
     const count = new PIXI.Text({ text: `Nọc: ${game.drawPile.length} lá`, style: { fontSize: 16, fill: 0xfde68a, fontWeight: "bold" } });
     count.x = pileX - 4; count.y = pileY + 94; app.stage.addChild(count);
-    const trumpLabel = new PIXI.Text({ text: `Chủ: ${SUIT_NAME[game.trumpSuit]} ${SUIT_SYMBOL[game.trumpSuit]}`, style: { fontSize: 14, fill: 0xffffff } });
-    trumpLabel.x = pileX - 4; trumpLabel.y = pileY + 116; app.stage.addChild(trumpLabel);
+    // Đã bỏ chữ "Chủ:" dưới nọc: lá chủ lật ngửa dưới chồng bài đã nói rõ chất chủ.
   } else {
     const emptyPile = new PIXI.Text({ text: "Hết nọc", style: { fontSize: 16, fill: 0xfecaca } });
     emptyPile.x = pileX; emptyPile.y = cy; app.stage.addChild(emptyPile);
