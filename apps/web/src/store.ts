@@ -49,7 +49,7 @@ interface GameStore {
   runBots: () => Promise<void>; addLog: (msg: string) => void;
   sendChat: (text: string) => void; clearNotice: () => void;
   autoLowestAttack: () => void; passAttack: () => void; followWindow: { mode: "take" | "add"; takerId?: string; key: number } | null; resolveTakeFollow: () => void; passFollow: () => void; takeAnimCards: string[] | null; clearTakeAnim: () => void;
-  onlineConnect: (m: Record<string, unknown>) => void; onlineCreateRoom: (bet: string, count: number) => void; onlineJoinRoom: (code: string) => void; onlineReady: (v: boolean) => void; onlineStart: () => void; onlineLeave: () => void; setGoogleUser: (u: { name: string; email: string; avatar: string | null } | null) => void; loadFirebaseConfig: () => Promise<void>; firebaseLogin: () => Promise<void>; googleLogout: () => Promise<void>;
+  onlineConnect: (m: Record<string, unknown>) => void; onlineCreateRoom: (bet: string, count: number) => void; onlineJoinRoom: (code: string) => void; onlineReady: (v: boolean) => void; onlineStart: () => void; onlineLeave: () => void; setGoogleUser: (u: { name: string; email: string; avatar: string | null } | null) => void; loadFirebaseConfig: () => Promise<void>; firebaseLogin: () => Promise<void>; firebaseRedirectLogin: () => Promise<void>; googleLogout: () => Promise<void>;
 }
 
 // Lá mới xuất hiện trên bàn sau một nước đi (so với trước nước đi).
@@ -136,7 +136,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   sortHand: () => {},
   autoLowestAttack: () => {},
   passAttack: () => {},
-  followWindow: null, resolveTakeFollow: () => {}, passFollow: () => {}, takeAnimCards: null, clearTakeAnim: () => {}, onlineConnect: () => {}, onlineCreateRoom: () => {}, onlineJoinRoom: () => {}, onlineReady: () => {}, onlineStart: () => {}, onlineLeave: () => {}, setGoogleUser: () => {}, loadFirebaseConfig: async () => {}, firebaseLogin: async () => {}, googleLogout: async () => {},
+  followWindow: null, resolveTakeFollow: () => {}, passFollow: () => {}, takeAnimCards: null, clearTakeAnim: () => {}, onlineConnect: () => {}, onlineCreateRoom: () => {}, onlineJoinRoom: () => {}, onlineReady: () => {}, onlineStart: () => {}, onlineLeave: () => {}, setGoogleUser: () => {}, loadFirebaseConfig: async () => {}, firebaseLogin: async () => {}, firebaseRedirectLogin: async () => {}, googleLogout: async () => {},
 }));
 
 // Gán các action sau khi store tạo xong để tránh vòng tham chiếu trong create().
@@ -435,6 +435,14 @@ store.setState({
     if (!rr.ok) throw new Error(jj.message || jj.error || "Đăng nhập Google thất bại");
     try { localStorage.setItem("tanloc-session", jj.sessionToken); } catch { /* bỏ qua */ }
     store.setState((prev) => ({ googleUser: jj.user, playerName: jj.user.name, screen: prev.screen === "login" ? "lobby" : prev.screen, authError: null }));
+  },
+  firebaseRedirectLogin: async () => {
+    // Du phong khi popup bi chan: dung redirect cu (trang se chuyen sang Google roi quay ve,
+    // luong getRedirectResult/watch hien co se doi token). Chi dung khi popup that su bi chan.
+    const cfg = store.getState().firebaseConfig;
+    if (!cfg || !cfg.apiKey || !cfg.projectId || !cfg.appId) throw new Error("Firebase chưa cấu hình trên Render");
+    const { signInGoogleRedirect } = await import("./game/firebase-auth");
+    await signInGoogleRedirect(cfg as unknown as Parameters<typeof signInGoogleRedirect>[0]);
   },
   googleLogout: async () => {
     try { localStorage.removeItem("tanloc-session"); } catch { /* bỏ qua */ }

@@ -24,6 +24,7 @@ export default function App() {
   const [starting, setStarting] = useState<null | { step: "count" | "deal" | "trump"; count: number; deal: number }>(null);
   const [firstEffect, setFirstEffect] = useState(false);
   const [googleError, setGoogleError] = useState("");
+  const [popupBlocked, setPopupBlocked] = useState(false);
   useEffect(() => { void s.loadFirebaseConfig(); }, []);
   // Bong bóng chat trên avatar: hiện 6 giây rồi tự ẩn.
   useEffect(() => {
@@ -309,26 +310,49 @@ export default function App() {
   if (s.screen === "login") {
     return (
       <div className="tan-home h-screen w-screen overflow-hidden text-white relative">
-        {/* Adam (trái) và Chúa cùng các thiên thần (phải) giơ tay hướng về nút đăng nhập ở giữa. */}
+        {/* Adam (trai) va Chua cung cac thien than (phai) giay tay ve la bai o giua. */}
         <img src="/login/adam.png" alt="" className="absolute left-0 bottom-0 pointer-events-none select-none" style={{ height: "min(72vh, 620px)", maxWidth: "52vw", objectFit: "contain", objectPosition: "left bottom", zIndex: 0 }} />
         <img src="/login/god.png" alt="" className="absolute right-0 bottom-0 pointer-events-none select-none" style={{ height: "min(72vh, 620px)", maxWidth: "52vw", objectFit: "contain", objectPosition: "right bottom", zIndex: 0 }} />
-        <div className="relative flex flex-col items-center justify-center h-full" style={{ gap: 18, padding: 24, zIndex: 10 }}>
+        <div className="relative flex flex-col items-center justify-center h-full" style={{ gap: 20, padding: 24, zIndex: 10 }}>
           <div style={{ textAlign: "center", textShadow: "0 2px 12px rgba(0,0,0,.6)" }}>
             <div style={{ fontSize: 46, fontWeight: 900, letterSpacing: 2 }}>TẤN ONLINE</div>
-            <div style={{ color: "#ffd97a", fontWeight: 700, marginTop: 6 }}>VN-8 · 2–4 người · Chơi với người thật</div>
           </div>
-          <div style={{ textAlign: "center", position: "relative" }}>
-            <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: 340, height: 340, borderRadius: "50%", background: "radial-gradient(circle, rgba(250,204,21,.35), rgba(250,204,21,0) 70%)", pointerEvents: "none" }} />
-            {s.configLoading ? (
-              <p style={{ color: "rgba(255,255,255,.85)", fontSize: 15 }}>Đang tải đăng nhập…</p>
-            ) : s.firebaseConfig ? (
-              <button className="bg-white text-black font-bold px-8 py-3 rounded-full text-lg relative" style={{ boxShadow: "0 0 50px rgba(250,204,21,.55)" }} onClick={async () => { try { await s.firebaseLogin(); setGoogleError(""); } catch (e) { setGoogleError((e as Error).message); } }}>Đăng nhập bằng Google</button>
-            ) : (
-              <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13 }}>Đăng nhập Google chưa cấu hình (cần Firebase config trên Render).</p>
-            )}
-            {googleError && <p style={{ color: "#f87171", fontSize: 13, marginTop: 10 }}>{googleError}</p>}
-            {s.authError && <p style={{ color: "#f87171", fontSize: 13, marginTop: 10 }}>{s.authError}</p>}
+          {/* La At Co to, lo lung giua hai ban tay; nut dang nhap la mot phan cua la bai. */}
+          <div className="login-card-float" style={{ background: "#fff", color: "#111", borderRadius: 18, height: "min(58vh, 480px)", aspectRatio: "5 / 7", maxWidth: "84vw", display: "flex", flexDirection: "column", padding: 16, boxSizing: "border-box" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1 }}>
+              <span style={{ fontSize: 30, fontWeight: 900, color: "#dc2626" }}>A</span>
+              <svg viewBox="0 0 24 24" style={{ width: 20, height: 20 }}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="#dc2626" /></svg>
+            </div>
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg viewBox="0 0 24 24" style={{ width: "62%", filter: "drop-shadow(0 10px 16px rgba(220,38,38,.35))" }}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="#dc2626" /></svg>
+            </div>
+            <div>
+              {s.configLoading ? (
+                <p style={{ color: "#374151", fontSize: 15, textAlign: "center", margin: 0 }}>Đang tải đăng nhập…</p>
+              ) : s.firebaseConfig ? (
+                <button style={{ width: "100%", background: "#dc2626", color: "#fff", fontWeight: 800, fontSize: 16, padding: "12px 16px", borderRadius: 999, border: "none", boxShadow: "0 8px 20px rgba(220,38,38,.35)", cursor: "pointer" }} onClick={async () => { try { await s.firebaseLogin(); setGoogleError(""); setPopupBlocked(false); } catch (e) { const m = (e as Error).message; if (m.includes("popup-blocked")) { setPopupBlocked(true); setGoogleError(""); } else setGoogleError(m); } }}>Đăng nhập bằng Google</button>
+              ) : (
+                <p style={{ color: "#6b7280", fontSize: 13, textAlign: "center", margin: 0 }}>Đăng nhập Google chưa cấu hình (cần Firebase config trên Render).</p>
+              )}
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                <div style={{ transform: "rotate(180deg)", display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1 }}>
+                  <span style={{ fontSize: 30, fontWeight: 900, color: "#dc2626" }}>A</span>
+                  <svg viewBox="0 0 24 24" style={{ width: 20, height: 20 }}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="#dc2626" /></svg>
+                </div>
+              </div>
+            </div>
           </div>
+          {googleError && <p style={{ color: "#f87171", fontSize: 13, textAlign: "center", margin: 0 }}>{googleError}</p>}
+          {s.authError && <p style={{ color: "#f87171", fontSize: 13, textAlign: "center", margin: 0 }}>{s.authError}</p>}
+          {popupBlocked && (
+            <div style={{ maxWidth: 380, textAlign: "center", background: "rgba(0,0,0,.5)", borderRadius: 12, padding: 12 }}>
+              <p style={{ color: "#fdba74", fontSize: 13, margin: 0 }}>Trình duyệt đã chặn cửa sổ đăng nhập. Bấm icon popup bị chặn ở góc phải thanh địa chỉ, chọn “Always allow pop-ups” cho trang này rồi bấm Thử lại.</p>
+              <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10, flexWrap: "wrap" }}>
+                <button className="bg-white text-black font-bold px-4 py-2 rounded-full text-sm" onClick={async () => { try { await s.firebaseLogin(); setPopupBlocked(false); } catch (e) { const m = (e as Error).message; if (!m.includes("popup-blocked")) setGoogleError(m); } }}>Thử lại bằng popup</button>
+                <button className="bg-transparent text-white font-bold px-4 py-2 rounded-full text-sm" style={{ border: "1px solid rgba(255,255,255,.6)" }} onClick={async () => { try { await s.firebaseRedirectLogin(); } catch (e) { setGoogleError((e as Error).message); } }}>Đăng nhập bằng chuyển trang</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );

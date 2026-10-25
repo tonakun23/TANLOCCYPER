@@ -114,3 +114,7 @@ body { background: #1b3a1b; margin: 0; }
 /* Lên bài: lá bay từ giữa bàn xuống tay mình. */
 .take-fly { position: absolute; left: 50%; top: 50%; margin-left: -36px; margin-top: -50px; animation: take-to-hand 0.6s ease-in forwards; opacity: 1; }
 @keyframes take-to-hand { from { transform: translate(0, 0) scale(1); opacity: 1; } to { transform: translate(0, 42vh) scale(0.9); opacity: 0.2; } }
+
+/* La bai dang nhap lo lung giua hai ban tay Adam va Chua. */
+.login-card-float { animation: login-float 4s ease-in-out infinite; box-shadow: 0 24px 50px rgba(0,0,0,.55), 0 8px 20px rgba(0,0,0,.4); }
+@keyframes login-float { 0%, 100% { transform: translateY(-8px) rotate(-2deg); } 50% { transform: translateY(8px) rotate(-2deg); } }
