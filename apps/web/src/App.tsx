@@ -308,23 +308,25 @@ export default function App() {
   }
   if (s.screen === "login") {
     return (
-      <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col items-center justify-center" style={{ gap: 24, padding: 24 }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 42, fontWeight: 900, letterSpacing: 2 }}>TẤN ONLINE</div>
-          <div style={{ color: "#ffd97a", fontWeight: 700, marginTop: 6 }}>VN-8 · 2–4 người · Chơi với người thật</div>
-        </div>
-        <div className="tan-fan">
-          <img src="/durak/cards/AS.png" alt="A bích" /><img src="/durak/cards/AD.png" alt="A rô" /><img src="/durak/cards/AC.png" alt="A chuồn" /><img src="/durak/cards/AH.png" alt="A cơ" />
-        </div>
-        <div style={{ textAlign: "center" }}>
-          <p style={{ color: "rgba(255,255,255,.85)", marginBottom: 16 }}>Đăng nhập Google để vào game. Tên và ảnh đại diện Google sẽ dùng làm tên người chơi trong phòng.</p>
-          {s.firebaseConfig ? (
-            <button className="bg-white text-black font-bold px-8 py-3 rounded-full text-lg" onClick={async () => { try { await s.firebaseLogin(); setGoogleError(""); } catch (e) { setGoogleError((e as Error).message); } }}>Đăng nhập bằng Google</button>
-          ) : (
-            <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13 }}>Đăng nhập Google chưa cấu hình (cần Firebase config trên Render).</p>
-          )}
-          {googleError && <p style={{ color: "#f87171", fontSize: 13, marginTop: 10 }}>{googleError}</p>}
-          {s.authError && <p style={{ color: "#f87171", fontSize: 13, marginTop: 10 }}>{s.authError}</p>}
+      <div className="tan-home h-screen w-screen overflow-hidden text-white relative">
+        {/* Adam (trái) và Chúa cùng các thiên thần (phải) giơ tay hướng về nút đăng nhập ở giữa. */}
+        <img src="/login/adam.png" alt="" className="absolute left-0 bottom-0 pointer-events-none select-none" style={{ height: "min(72vh, 620px)", maxWidth: "52vw", objectFit: "contain", objectPosition: "left bottom", zIndex: 0 }} />
+        <img src="/login/god.png" alt="" className="absolute right-0 bottom-0 pointer-events-none select-none" style={{ height: "min(72vh, 620px)", maxWidth: "52vw", objectFit: "contain", objectPosition: "right bottom", zIndex: 0 }} />
+        <div className="relative flex flex-col items-center justify-center h-full" style={{ gap: 18, padding: 24, zIndex: 10 }}>
+          <div style={{ textAlign: "center", textShadow: "0 2px 12px rgba(0,0,0,.6)" }}>
+            <div style={{ fontSize: 46, fontWeight: 900, letterSpacing: 2 }}>TẤN ONLINE</div>
+            <div style={{ color: "#ffd97a", fontWeight: 700, marginTop: 6 }}>VN-8 · 2–4 người · Chơi với người thật</div>
+          </div>
+          <div style={{ textAlign: "center", position: "relative" }}>
+            <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: 340, height: 340, borderRadius: "50%", background: "radial-gradient(circle, rgba(250,204,21,.35), rgba(250,204,21,0) 70%)", pointerEvents: "none" }} />
+            {s.firebaseConfig ? (
+              <button className="bg-white text-black font-bold px-8 py-3 rounded-full text-lg relative" style={{ boxShadow: "0 0 50px rgba(250,204,21,.55)" }} onClick={async () => { try { await s.firebaseLogin(); setGoogleError(""); } catch (e) { setGoogleError((e as Error).message); } }}>Đăng nhập bằng Google</button>
+            ) : (
+              <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13 }}>Đăng nhập Google chưa cấu hình (cần Firebase config trên Render).</p>
+            )}
+            {googleError && <p style={{ color: "#f87171", fontSize: 13, marginTop: 10 }}>{googleError}</p>}
+            {s.authError && <p style={{ color: "#f87171", fontSize: 13, marginTop: 10 }}>{s.authError}</p>}
+          </div>
         </div>
       </div>
     );

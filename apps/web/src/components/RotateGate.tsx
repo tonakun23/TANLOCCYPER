@@ -1,11 +1,14 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { RotateCw } from "lucide-react";
+import { useGameStore } from "../store";
 
-// Điện thoại cầm dọc thì chặn bằng cổng xoay ngang: game chỉ chơi ngang, full màn hình.
+// Điện thoại cầm dọc thì chặn bằng cổng xoay ngang, NHƯNG CHỈ Ở MÀN VÁN ĐẤU (game):
+// màn đăng nhập / sảnh / phòng / chờ vẫn dùng được khi cầm dọc, vào ván mới bắt buộc xoay ngang.
 // - Android Chrome: nút bấm sẽ xin full màn hình + khóa xoay ngang, máy tự xoay luôn.
 // - iOS không cho khóa xoay bằng code, nên nút bấm không xoay được thì hiện dòng nhắc xoay tay.
 // - Máy tính / máy đã xoay ngang thì không hiện cổng này.
 export default function RotateGate({ children }: { children: ReactNode }) {
+  const gameScreen = useGameStore((s) => s.screen);
   const [portraitMobile, setPortraitMobile] = useState(false);
   const [tried, setTried] = useState(false);
   useEffect(() => {
@@ -29,7 +32,7 @@ export default function RotateGate({ children }: { children: ReactNode }) {
   return (
     <>
       {children}
-      {portraitMobile && (
+      {portraitMobile && gameScreen === "game" && (
         <div className="fixed inset-0 z-[100] bg-red-950 text-white flex flex-col items-center justify-center gap-4 p-6 text-center">
           <RotateCw size={64} className="text-yellow-400" />
           <h2 className="text-2xl font-black">Xoay ngang điện thoại để chơi</h2>
