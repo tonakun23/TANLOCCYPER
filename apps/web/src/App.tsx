@@ -67,7 +67,7 @@ export default function App() {
       return () => clearTimeout(id);
     }
     if (starting.step === "deal") {
-      const id = setTimeout(() => setStarting((v) => v ? (v.deal >= 32 ? { step: "trump", count: 0, deal: v.deal } : { ...v, deal: v.deal + 1 }) : null), 120);
+      const id = setTimeout(() => setStarting((v) => v ? (v.deal >= (game?.players.length || 4) * 8 ? { step: "trump", count: 0, deal: v.deal } : { ...v, deal: v.deal + 1 }) : null), 120);
       return () => clearTimeout(id);
     }
     const id = setTimeout(() => setStarting(null), 1600);
@@ -280,13 +280,19 @@ export default function App() {
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
             {seats.map((pl, i) => pl ? (
               <div key={pl.id} style={{ textAlign: "center", width: 110 }}>
-                {pl.avatar ? <img src={pl.avatar} alt={pl.name} className="w-[64px] h-[64px] rounded-full mx-auto" /> : <div className="tan-avatar" style={{ margin: "0 auto", width: 64, height: 64, fontSize: 24 }}>{pl.name.charAt(0).toUpperCase()}</div>}
+                {pl.avatar ? <img src={pl.avatar} alt={pl.name} className="w-[64px] h-[64px] rounded-full mx-auto" style={{ filter: pl.ready ? "none" : "grayscale(1)", opacity: pl.ready ? 1 : 0.55 }} /> : <div className="tan-avatar" style={{ margin: "0 auto", width: 64, height: 64, fontSize: 24, filter: pl.ready ? "none" : "grayscale(1)", opacity: pl.ready ? 1 : 0.55 }}>{pl.name.charAt(0).toUpperCase()}</div>}
                 <div style={{ fontWeight: 700, marginTop: 6 }}>{pl.name}{pl.isHost ? " (chủ phòng)" : ""}</div>
                 <div style={{ fontSize: 12, color: pl.online ? "#4ade80" : "#f87171" }}>{pl.online ? "Đang online" : "Mất kết nối"}</div>
                 {pl.id === s.onlineMyLobbyId ? (
-                  <button className={pl.ready ? "bg-green-500 text-white font-bold px-4 py-1 rounded-full mt-2" : "bg-white text-black font-bold px-4 py-1 rounded-full mt-2"} onClick={() => s.onlineReady(!pl.ready)}>{pl.ready ? "Đã sẵn sàng ✓" : "Sẵn sàng"}</button>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center", marginTop: 8 }}>
+                    <button className={pl.ready ? "bg-green-500 text-white font-bold px-4 py-1 rounded-full" : "bg-white text-black font-bold px-4 py-1 rounded-full"} onClick={() => s.onlineReady(!pl.ready)}>{pl.ready ? "Đã sẵn sàng ✓" : "Sẵn sàng"}</button>
+                    {pl.isHost && <button className="bg-yellow-400 text-black font-bold px-6 py-2 rounded-full disabled:opacity-40" disabled={!canStart} onClick={() => s.onlineStart()}>Bắt đầu</button>}
+                  </div>
                 ) : (
-                  <div style={{ marginTop: 8, fontSize: 13, color: pl.ready ? "#4ade80" : "rgba(255,255,255,.6)" }}>{pl.ready ? "Đã sẵn sàng ✓" : "Chưa sẵn sàng"}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center", marginTop: 8 }}>
+                    <button disabled className={pl.ready ? "bg-green-500 text-white font-bold px-4 py-1 rounded-full opacity-90" : "bg-gray-400 text-white font-bold px-4 py-1 rounded-full opacity-70"} style={{ cursor: "default" }}>{pl.ready ? "Đã sẵn sàng ✓" : "Chưa sẵn sàng"}</button>
+                    {pl.isHost && <button disabled className="bg-yellow-400 text-black font-bold px-6 py-2 rounded-full opacity-40" style={{ cursor: "default" }}>Bắt đầu</button>}
+                  </div>
                 )}
               </div>
             ) : (
@@ -298,8 +304,7 @@ export default function App() {
             ))}
           </div>
           <div style={{ textAlign: "center" }}>
-            <button className="bg-yellow-400 text-black font-bold px-8 py-3 rounded-full text-lg disabled:opacity-40" disabled={!canStart} onClick={() => s.onlineStart()}>Bắt đầu</button>
-            <p style={{ color: "#ffd97a", fontSize: 13, marginTop: 8 }}>Trò chơi bắt đầu khi đủ ít nhất 2 người, tất cả đã ấn Sẵn sàng và chủ phòng ấn Bắt đầu. Khi đó sẽ đếm 1-2-3-Bắt đầu, phát bài lần lượt rồi mới chọn chất chủ.</p>
+            <p style={{ color: "#ffd97a", fontSize: 13 }}>Trò chơi bắt đầu khi đủ ít nhất 2 người, tất cả đã ấn Sẵn sàng và chủ phòng ấn Bắt đầu. Khi đó mới đếm 3-2-1, phát bài lần lượt rồi mới chọn chất chủ.</p>
             {s.onlineError && <p style={{ color: "#f87171", fontSize: 13, marginTop: 4 }}>{s.onlineError}</p>}
             <p style={{ color: "rgba(255,255,255,.6)", fontSize: 13, marginTop: 4 }}>Kết nối: {s.onlineWsStatus} · Phòng thật qua WebSocket, không có bot. Muốn chơi ngay một mình, bấm Chơi với bot.</p>
             <button className="tan-pill" style={{ background: "#7c3aed", color: "#fff", marginTop: 12 }} onClick={startBotGame}>Chơi với bot</button>
@@ -319,7 +324,7 @@ export default function App() {
             <div style={{ fontSize: 46, fontWeight: 900, letterSpacing: 2 }}>TẤN ONLINE</div>
           </div>
           {/* La At Co to, lo lung giua hai ban tay; nut dang nhap la mot phan cua la bai. */}
-          <div className="login-card-float" style={{ background: "#fff", color: "#111", borderRadius: 18, height: "min(58vh, 480px)", aspectRatio: "5 / 7", maxWidth: "84vw", display: "flex", flexDirection: "column", padding: 16, boxSizing: "border-box" }}>
+          <div className="login-card-float" style={{ background: "#fff", color: "#111", borderRadius: 18, height: "min(50vh, 400px)", aspectRatio: "5 / 7", maxWidth: "84vw", display: "flex", flexDirection: "column", padding: 16, boxSizing: "border-box" }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1 }}>
               <span style={{ fontSize: 30, fontWeight: 900, color: "#dc2626" }}>A</span>
               <svg viewBox="0 0 24 24" style={{ width: 20, height: 20 }}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="#dc2626" /></svg>
@@ -331,7 +336,7 @@ export default function App() {
               {s.configLoading ? (
                 <p style={{ color: "#374151", fontSize: 15, textAlign: "center", margin: 0 }}>Đang tải đăng nhập…</p>
               ) : s.firebaseConfig ? (
-                <button style={{ width: "100%", background: "#dc2626", color: "#fff", fontWeight: 800, fontSize: 16, padding: "12px 16px", borderRadius: 999, border: "none", boxShadow: "0 8px 20px rgba(220,38,38,.35)", cursor: "pointer" }} onClick={async () => { try { await s.firebaseLogin(); setGoogleError(""); setPopupBlocked(false); } catch (e) { const m = (e as Error).message; if (m.includes("popup-blocked")) { setPopupBlocked(true); setGoogleError(""); } else setGoogleError(m); } }}>Đăng nhập bằng Google</button>
+                <button style={{ width: "100%", background: "#dc2626", color: "#fff", fontWeight: 800, fontSize: 16, padding: "12px 16px", borderRadius: 999, border: "none", boxShadow: "0 8px 20px rgba(220,38,38,.35)", cursor: "pointer" }} onClick={async () => { try { await s.firebaseLogin(); setGoogleError(""); setPopupBlocked(false); } catch (e) { const m = (e as Error).message; if (m.includes("popup-blocked")) { setPopupBlocked(true); setGoogleError(""); } else setGoogleError(m); } }}>google login</button>
               ) : (
                 <p style={{ color: "#6b7280", fontSize: 13, textAlign: "center", margin: 0 }}>Đăng nhập Google chưa cấu hình (cần Firebase config trên Render).</p>
               )}
@@ -347,7 +352,7 @@ export default function App() {
           {s.authError && <p style={{ color: "#f87171", fontSize: 13, textAlign: "center", margin: 0 }}>{s.authError}</p>}
           {popupBlocked && (
             <div style={{ maxWidth: 380, textAlign: "center", background: "rgba(0,0,0,.5)", borderRadius: 12, padding: 12 }}>
-              <p style={{ color: "#fdba74", fontSize: 13, margin: 0 }}>Trình duyệt đã chặn cửa sổ đăng nhập. Bấm icon popup bị chặn ở góc phải thanh địa chỉ, chọn “Always allow pop-ups” cho trang này rồi bấm Thử lại.</p>
+              <p style={{ color: "#fdba74", fontSize: 13, margin: 0 }}>Trình duyệt đã chặn cửa sổ đăng nhập. Để cho phép: bấm icon ổ khóa ở đầu thanh địa chỉ (bên trái địa chỉ web) → Site settings → Pop-ups and redirects → chọn Allow, rồi bấm Thử lại. Hoặc bấm nút chuyển trang bên dưới để khỏi cần popup.</p>
               <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10, flexWrap: "wrap" }}>
                 <button className="bg-white text-black font-bold px-4 py-2 rounded-full text-sm" onClick={async () => { try { await s.firebaseLogin(); setPopupBlocked(false); } catch (e) { const m = (e as Error).message; if (!m.includes("popup-blocked")) setGoogleError(m); } }}>Thử lại bằng popup</button>
                 <button className="bg-transparent text-white font-bold px-4 py-2 rounded-full text-sm" style={{ border: "1px solid rgba(255,255,255,.6)" }} onClick={async () => { try { await s.firebaseRedirectLogin(); } catch (e) { setGoogleError((e as Error).message); } }}>Đăng nhập bằng chuyển trang</button>
@@ -621,8 +626,10 @@ export default function App() {
             <div className="text-center">
               <div className="font-black text-3xl text-yellow-300 mb-4">Đang phát bài…</div>
               <div className="flex gap-6 justify-center">
-                {["Trên", "Trái", "Phải", "Bạn"].map((seat, si) => {
-                  const countForSeat = starting.deal >= si ? Math.min(8, Math.ceil((starting.deal - si + 1) / 4)) : 0;
+                {(game?.players || []).map((pl, si) => {
+                  const totalPlayers = game?.players.length || 1;
+                  const countForSeat = starting.deal > si ? Math.min(8, Math.floor((starting.deal - 1 - si) / totalPlayers) + 1) : 0;
+                  const seat = pl.name;
                   return (
                     <div key={seat} className="text-center">
                       <div className="flex -space-x-3 justify-center mb-2 h-[50px]">
