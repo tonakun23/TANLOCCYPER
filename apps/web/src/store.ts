@@ -23,7 +23,7 @@ export interface ChatMsg { id: number; from: string; text: string; }
 const BOT_REPLIES = ["Chơi hay đấy!", "Lá này khó đỡ quá!", "Tới lượt bạn rồi kìa.", "Haha, ván này căng!", "Để xem bạn đỡ sao đây.", "Bài mình cũng không đẹp lắm đâu."];
 
 interface GameStore {
-  screen: "login" | "lobby" | "rooms" | "create" | "waiting" | "game"; waitingCode: string | null; waitingCount: number; waitingReady: boolean; waitingMode: "private" | "quick" | "join"; myId: string; onlineMode: boolean; onlineRoom: { code: string; bet: string; maxPlayers: number; hostId: string; state: string; players: { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean }[] } | null; onlineMyLobbyId: string | null; onlineWsStatus: string; onlineError: string | null; googleUser: { name: string; email: string; avatar: string | null } | null; firebaseConfig: Record<string, string> | null;
+  screen: "login" | "lobby" | "rooms" | "create" | "waiting" | "game"; waitingCode: string | null; waitingCount: number; waitingReady: boolean; waitingMode: "private" | "quick" | "join"; myId: string; onlineMode: boolean; onlineRoom: { code: string; bet: string; maxPlayers: number; hostId: string; state: string; players: { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean }[] } | null; onlineMyLobbyId: string | null; onlineWsStatus: string; onlineError: string | null; googleUser: { name: string; email: string; avatar: string | null } | null; firebaseConfig: Record<string, string> | null; authError: string | null;
   // Mã phòng riêng (chơi với bạn): hiện luôn góc phải trong ván, thoát ván là hết.
   roomCode: string | null; createPrivate: boolean;
   playerName: string; playerCount: number; allowTransfer: boolean;
@@ -63,7 +63,7 @@ function tableIds(game: GameState): Set<string> {
 }
 
 export const useGameStore = create<GameStore>()((set, get) => ({
-  screen: "login", roomCode: null, waitingCode: null, waitingCount: 4, waitingReady: false, waitingMode: "private", myId: HUMAN_ID, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, onlineWsStatus: "disconnected", onlineError: null, googleUser: null, firebaseConfig: null, createPrivate: false, playerName: "Bạn", playerCount: 4, allowTransfer: true,
+  screen: "login", roomCode: null, waitingCode: null, waitingCount: 4, waitingReady: false, waitingMode: "private", myId: HUMAN_ID, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, onlineWsStatus: "disconnected", onlineError: null, googleUser: null, firebaseConfig: null, authError: null, createPrivate: false, playerName: "Bạn", playerCount: 4, allowTransfer: true,
   game: null, selected: null, humanAddPassed: false, botBusy: false,
   notice: null, noticeKey: 0, flying: null, drawFlying: null, drawing: false, chat: [],
   setPlayerName: (v) => set({ playerName: v }),
@@ -372,23 +372,30 @@ store.setState({
   loadFirebaseConfig: async () => {
     try {
       const r = await fetch(`${API_BASE}/auth/config`); const j = await r.json(); if (!j.firebaseConfig) return;
-      store.setState({ firebaseConfig: j.firebaseConfig });
-      // Theo dõi trạng thái Firebase: vừa quay lại từ Google (redirect) hoặc đã đăng nhập từ trước
-      // (tải lại trang) đều vào đây; chỉ chuyển sang sảnh khi đang ở màn đăng nhập, không đá khỏi ván đang chơi.
+      store.setState({ firebaseConfig: j.firebaseConfig, authError: null });
+      // Đổi token Firebase lấy session backend (dùng chung cho cả redirect và watch).
+      const exchange = async (fb: { idToken: string }) => {
+        const rr = await fetch(`${API_BASE}/auth/firebase`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: fb.idToken }) });
+        const jj = await rr.json();
+        if (!rr.ok) throw new Error(jj.message || jj.error || "Đăng nhập Google thất bại");
+        try { localStorage.setItem("tanloc-session", jj.sessionToken); } catch { /* bỏ qua */ }
+        store.setState((prev) => ({ googleUser: jj.user, playerName: jj.user.name, screen: prev.screen === "login" ? "lobby" : prev.screen, authError: null }));
+      };
+      // 1) Vừa quay lại từ Google: lấy kết quả redirect trực tiếp (đáng tin hơn watch trong trường hợp này).
+      try {
+        const { handleGoogleRedirect } = await import("./game/firebase-auth");
+        const fb = await handleGoogleRedirect(j.firebaseConfig);
+        if (fb) await exchange(fb);
+      } catch (e) { store.setState({ authError: (e as Error).message }); }
+      // 2) Theo dõi trạng thái Firebase: đã đăng nhập từ trước (tải lại trang) cũng vào đây;
+      // chỉ chuyển sang sảnh khi đang ở màn đăng nhập, không đá khỏi ván đang chơi.
       try {
         const { watchFirebaseUser } = await import("./game/firebase-auth");
         if (!(globalThis as unknown as { __tanlocWatch?: boolean }).__tanlocWatch) {
           (globalThis as unknown as { __tanlocWatch?: boolean }).__tanlocWatch = true;
           watchFirebaseUser(j.firebaseConfig, async (fb) => {
             if (!fb) return;
-            try {
-              const rr = await fetch(`${API_BASE}/auth/firebase`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: fb.idToken }) });
-              const jj = await rr.json();
-              if (rr.ok) {
-                try { localStorage.setItem("tanloc-session", jj.sessionToken); } catch { /* bỏ qua */ }
-                store.setState((prev) => ({ googleUser: jj.user, playerName: jj.user.name, screen: prev.screen === "login" ? "lobby" : prev.screen }));
-              }
-            } catch { /* bỏ qua */ }
+            try { await exchange(fb); } catch (e) { store.setState({ authError: (e as Error).message }); }
           });
         }
       } catch { /* chưa đăng nhập thì ở lại màn đăng nhập */ }

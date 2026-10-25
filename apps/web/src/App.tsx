@@ -324,6 +324,7 @@ export default function App() {
             <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13 }}>Đăng nhập Google chưa cấu hình (cần Firebase config trên Render).</p>
           )}
           {googleError && <p style={{ color: "#f87171", fontSize: 13, marginTop: 10 }}>{googleError}</p>}
+          {s.authError && <p style={{ color: "#f87171", fontSize: 13, marginTop: 10 }}>{s.authError}</p>}
         </div>
       </div>
     );
