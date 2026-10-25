@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tấn Online — Bàn chơi theo mẫu ảnh, mặt sau mới</title>
+<style>
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,sans-serif;background:#1a0205;color:#fff}
+.stage{position:relative;min-height:640px;background:radial-gradient(circle at 50% 30%,#7f1d1d,#450a0a 60%,#2a0505);overflow:hidden;padding:16px}
+.oval{position:absolute;left:6%;right:6%;top:12%;bottom:28%;border:3px solid #f59e0b;border-radius:50%;background:linear-gradient(#991b1b,#7f1d1d);box-shadow:inset 0 0 80px rgba(0,0,0,.35)}
+.oval span{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:rgba(255,255,255,.08);font-size:42px;font-weight:900;letter-spacing:6px;white-space:nowrap}
+.top{display:flex;justify-content:space-between;align-items:flex-start;position:relative;z-index:2}
+.top .info{font-size:14px;line-height:1.5;color:#fecaca}.top .info b{color:#fff}
+.iconbtn{width:48px;height:48px;border-radius:50%;background:#7f1d1d;border:2px solid rgba(255,255,255,.25);color:#fff;font-size:22px;cursor:pointer}
+.opp{position:absolute;right:18px;top:32%;z-index:2;text-align:center}
+.avatar{width:84px;height:84px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#db2777);display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:900;border:3px solid rgba(255,255,255,.4)}
+.opp b{display:block;background:rgba(0,0,0,.55);padding:2px 10px;border-radius:999px;margin-top:6px}
+.opp .coins{color:#facc15;font-weight:800}
+.timer{width:56px;height:56px;border-radius:50%;background:#2563eb;border:4px solid #facc15;color:#fff;font-weight:900;font-size:20px;display:flex;align-items:center;justify-content:center;margin:8px auto 0}
+.cardback{width:62px;height:88px;border-radius:8px;background:#fff;padding:3px;box-shadow:0 4px 10px rgba(0,0,0,.4);margin:0 auto}
+.cardback svg{display:block;width:100%;height:100%}
+.player{position:absolute;left:16px;bottom:16px;z-index:2;text-align:center}
+.player .coins{color:#facc15;font-weight:800}
+.hand{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;z-index:2;display:flex}
+.card{width:92px;height:132px;background:#fff;border-radius:10px;box-shadow:0 6px 14px rgba(0,0,0,.45);position:relative;flex-shrink:0;margin-left:-34px;overflow:hidden}
+.card:first-child{margin-left:0}
+.card.red{color:#dc2626}.card.black{color:#111}
+.card .rank{font-size:34px;font-weight:900;line-height:.9;padding:6px 0 0 8px}
+.card .suit{font-size:22px;padding-left:8px}
+.card .big{position:absolute;left:0;right:0;bottom:-14px;text-align:center;font-size:84px;line-height:1}
+.card .face{position:absolute;left:0;right:0;bottom:0;height:78px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900}
+.card .face .crown{font-size:26px}
+.card .face.q{background:linear-gradient(#fde68a,#f59e0b)} .card .face.k{background:linear-gradient(#bfdbfe,#2563eb);color:#fff}
+.note{padding:12px 16px;color:#fecaca;font-size:14px}
+.backs{display:flex;gap:20px;padding:0 16px 20px;flex-wrap:wrap}
+.backs figure{margin:0;text-align:center}.backs .bigback{width:140px;height:198px;background:#fff;border-radius:12px;padding:5px;box-shadow:0 6px 14px rgba(0,0,0,.4)}
+.backs figcaption{margin-top:8px;color:#fecaca;font-size:13px}
+</style>
+</head>
+<body>
+<div class="stage">
+<div class="oval"><span>TẤN ONLINE</span></div>
+<div class="top">
+<div style="display:flex;gap:12px;align-items:flex-start"><button class="iconbtn">×</button><div class="info"><b>1M - Bàn: 12472997</b><br>Kênh Master<br>29ms</div></div>
+<div style="display:flex;gap:10px"><button class="iconbtn">Chat</button><button class="iconbtn">Menu</button></div>
+</div>
+<div class="opp">
+<div class="cardback" id="oppBack"></div><div style="font-size:12px;margin-top:4px">10</div>
+<div class="timer">17</div>
+<div class="avatar">H</div><b>Hoà</b><div class="coins">12.17M</div>
+</div>
+<div class="player"><div class="avatar" style="background:#e5e7eb;color:#9ca3af">◐</div><div class="coins">1036.85M</div></div>
+<div class="hand" id="hand"></div>
+</div>
+<div class="backs">
+<figure><div class="bigback" id="backBlue"></div><figcaption>Mặt sau xanh — mặc định trong bàn, giống ảnh bàn đầu tiên</figcaption></figure>
+<figure><div class="bigback" id="backRed"></div><figcaption>Mặt sau đỏ — cùng mẫu, chỉ đổi màu nền</figcaption></figure>
+</div>
+<p class="note">Mặt sau mới theo mẫu Tony gửi sau: viền trắng, nền hoa văn hình thoi nhỏ, ở giữa là hình thoi lớn viền trắng với tia sáng tỏa ra và một hình thoi nhỏ ở tâm. Mẫu này được vẽ lại bằng SVG, không dùng ảnh gốc của game khác. Trong bàn, mình để mặc định là bản xanh; nếu Tony muốn mặc định là bản đỏ thì bảo mình một câu. Hình Q/K ở tay bài vẫn là vẽ đơn giản mới, không sao chép tranh gốc, và chữ giữa bàn là TẤN ONLINE.</p>
+<script>
+function backSVG(color, uid){
+  const rays = Array.from({length:16}, (_,i)=>{
+    const a = i * Math.PI / 8, x2 = 50 + Math.cos(a)*34, y2 = 70 + Math.sin(a)*34;
+    return `<line x1="50" y1="70" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="white" stroke-width="1"/>`;
+  }).join('');
+  return `<svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="p${uid}" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M5 0 L10 5 L5 10 L0 5 Z" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="0.8"/></pattern><clipPath id="c${uid}"><polygon points="50,26 80,70 50,114 20,70"/></clipPath></defs><rect x="3" y="3" width="94" height="134" rx="6" fill="${color}"/><rect x="3" y="3" width="94" height="134" rx="6" fill="url(#p${uid})"/><rect x="7" y="7" width="86" height="126" rx="4" fill="none" stroke="white" stroke-width="1" opacity="0.9"/><g clip-path="url(#c${uid})">${rays}</g><polygon points="50,26 80,70 50,114 20,70" fill="none" stroke="white" stroke-width="2.5"/><polygon points="50,63 57,70 50,77 43,70" fill="white"/></svg>`;
+}
+document.getElementById('oppBack').innerHTML = backSVG('#2f5aa8', 'o');
+document.getElementById('backBlue').innerHTML = backSVG('#2f5aa8', 'b');
+document.getElementById('backRed').innerHTML = backSVG('#c81e1e', 'r');
+const hand=[['4','♥','red'],['5','♥','red'],['Q','♠','black'],['Q','♣','black'],['Q','♦','red'],['Q','♥','red'],['K','♠','black'],['2','♠','black'],['2','♣','black'],['2','♥','red']];
+document.getElementById('hand').innerHTML=hand.map(([r,s,c])=>{
+  const face=(r==='Q'||r==='K')?`<div class="face ${r.toLowerCase()}"><span class="crown">♛</span>${r}</div>`:`<div class="big">${s}</div>`;
+  return `<div class="card ${c}"><div class="rank">${r}</div><div class="suit">${s}</div>${face}</div>`;
+}).join('');
+</script>
+</body>
+</html>

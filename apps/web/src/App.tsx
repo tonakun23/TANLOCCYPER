@@ -58,11 +58,18 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#2a0505] text-white p-4">
-      <div className="flex flex-wrap gap-4 bg-red-950 px-4 py-3 font-semibold rounded">
-        <span>{game.phase === "FINISHED" ? "Ván đã kết thúc" : `${game.players.find((p) => p.id === game.attackerId)?.name} tấn · ${game.players.find((p) => p.id === game.defenderId)?.name} đỡ`}</span>
-        {myTurn && <span>⏱ {seconds}s</span>}
-        <span>Chủ: {SUIT_NAME[game.trumpSuit]} {SUIT_SYMBOL[game.trumpSuit]}</span>
-        <span>Nọc: {game.drawPile.length} lá</span>
+      <div className="flex flex-wrap gap-4 bg-red-950 px-4 py-3 font-semibold rounded items-center justify-between">
+        <span className="flex items-center gap-3">
+          <button className="w-10 h-10 rounded-full bg-red-900 border border-white/30 text-xl" title="Về sảnh" onClick={s.backToLobby}>×</button>
+          <span>{game.phase === "FINISHED" ? "Ván đã kết thúc" : `${game.players.find((p) => p.id === game.attackerId)?.name} tấn · ${game.players.find((p) => p.id === game.defenderId)?.name} đỡ`}</span>
+          {myTurn && <span>⏱ {seconds}s</span>}
+          <span>Chủ: {SUIT_NAME[game.trumpSuit]} {SUIT_SYMBOL[game.trumpSuit]}</span>
+          <span>Nọc: {game.drawPile.length} lá</span>
+        </span>
+        <span className="flex gap-2">
+          <button className="w-10 h-10 rounded-full bg-red-900 border border-white/30 text-xs" title="Chat chưa làm trong bản bot">Chat</button>
+          <button className="w-10 h-10 rounded-full bg-red-900 border border-white/30 text-xs" title="Cài đặt chưa làm trong bản bot">Menu</button>
+        </span>
       </div>
       <TableCanvas game={game} />
       <div className="flex gap-3 justify-center my-3 flex-wrap">
@@ -79,8 +86,12 @@ export default function App() {
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(game.table.length > 0 && !iAmDefender)} onClick={s.passAdd}>Không thêm nữa</button>
         <button className="bg-yellow-400 text-black font-semibold px-4 py-2 rounded-full" onClick={s.backToLobby}>Ván mới</button>
       </div>
-      <div className="flex gap-2 justify-center flex-wrap min-h-[120px] p-4">
-        {me?.hand.map((c) => <CardView key={c.id} card={c} selected={s.selected === c.id} onClick={() => s.playCard(c.id)} />)}
+      <div className="flex justify-center flex-wrap min-h-[120px] p-4">
+        {me?.hand.map((c, i) => (
+          <div key={c.id} className={i === 0 ? "" : "-ml-6"}>
+            <CardView card={c} selected={s.selected === c.id} onClick={() => s.playCard(c.id)} />
+          </div>
+        ))}
       </div>
       <p className="text-center text-yellow-200">{hint}</p>
       <div className="max-w-3xl mx-auto bg-black/40 p-3 rounded-xl max-h-40 overflow-auto text-sm my-4">

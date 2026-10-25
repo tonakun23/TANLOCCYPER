@@ -1,5 +1,9 @@
 @import "tailwindcss";
 body { background: #2a0505; }
-.card { width: 72px; height: 100px; background: #fff; color: #111; border-radius: 10px; border: 2px solid #111; padding: 8px; font-weight: 800; box-shadow: 0 4px 10px rgba(0,0,0,.4); cursor: pointer; text-align: left; }
+.card { width: 72px; height: 100px; background: #fff; color: #111; border-radius: 10px; border: 2px solid #111; padding: 6px 0 0 6px; font-weight: 800; box-shadow: 0 4px 10px rgba(0,0,0,.4); cursor: pointer; text-align: left; position: relative; overflow: hidden; flex-shrink: 0; }
 .card.red { color: #dc2626; }
 .card.selected { outline: 4px solid #facc15; transform: translateY(-8px); }
+.card-rank { font-size: 26px; line-height: 1; }
+.card-suit { font-size: 18px; line-height: 1.2; }
+.card-big { position: absolute; left: 0; right: 0; bottom: -10px; text-align: center; font-size: 56px; line-height: 1; }
+.card-face { position: absolute; left: 0; right: 0; bottom: 0; height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 18px; }
