@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Sâm Lốc Cyper — Trang chủ</title>
+<style>
+  /* Màn này CHỈ thiết kế cho điện thoại xoay ngang.
+     Mọi kích thước đều ăn theo chiều cao màn hình (vh), vì khi xoay ngang
+     chiều cao mới là chiều bị hẹp. Dùng clamp() để không vỡ trên máy nhỏ. */
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: #fff;
+    background: radial-gradient(ellipse at 50% 30%, #7a121d 0%, #4d0810 45%, #2a0505 100%);
+    user-select: none;
+  }
+  .stage { position: relative; width: 100vw; height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+  .stage::before { /* vân nền mờ */
+    content: ""; position: absolute; inset: 0; opacity: .12; pointer-events: none;
+    background-image: radial-gradient(#ffb3b3 1px, transparent 1px); background-size: 26px 26px;
+  }
+  button { font-family: inherit; cursor: pointer; border: none; color: inherit; background: none; }
+
+  /* ---------- Thanh trên ---------- */
+  .topbar { position: relative; z-index: 2; display: flex; align-items: center; gap: min(2vw, 18px);
+    padding: min(2vh, 14px) min(2vw, 20px) 0; }
+  .side-strip { display: flex; flex-direction: column; gap: min(3vh, 18px); align-items: center; }
+  .icon-btn { width: min(8vh, 52px); height: min(8vh, 52px); border-radius: 50%; font-size: min(4.5vh, 28px);
+    display: flex; align-items: center; justify-content: center; color: #fff; line-height: 1; }
+  .icon-btn.outline { border: 1.5px solid rgba(255,255,255,.45); background: rgba(0,0,0,.25); }
+  .icon-btn:active { transform: scale(.92); }
+  .profile { display: flex; align-items: center; gap: min(1.5vw, 12px); min-width: 0; }
+  .avatar { width: min(11vh, 68px); height: min(11vh, 68px); border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, #ffb84d, #e2574c); border: 2px solid rgba(255,255,255,.7);
+    display: flex; align-items: center; justify-content: center; font-size: min(5vh, 32px); font-weight: 800; }
+  .who b { font-size: clamp(14px, 3.2vh, 22px); display: block; }
+  .level { display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: clamp(12px, 2.6vh, 18px); font-weight: 700; }
+  .level .star { color: #ffc93c; }
+  .bar { width: min(16vw, 130px); height: min(1.8vh, 12px); background: rgba(0,0,0,.55); border-radius: 99px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 58%; background: linear-gradient(90deg, #7ee787, #22c55e); border-radius: 99px; }
+  .shop { margin-left: auto; display: flex; align-items: center; gap: min(1vw, 8px); }
+  .shop-label { background: #2f9e8f; padding: min(1.2vh, 9px) min(2vw, 16px); border-radius: 99px 0 0 99px;
+    font-weight: 800; font-size: clamp(12px, 2.8vh, 19px); letter-spacing: .5px; }
+  .coins { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: clamp(13px, 3vh, 20px); color: #ffd97a; }
+  .coin { width: min(7vh, 44px); height: min(7vh, 44px); border-radius: 50%; flex-shrink: 0;
+    background: radial-gradient(circle at 35% 30%, #ffe27a, #f5a623 60%, #b45309);
+    border: 3px dashed #7c2d12; display: flex; align-items: center; justify-content: center; color: #7c2d12; font-size: min(3.4vh, 22px); font-weight: 900; }
+  .top-actions { display: flex; gap: min(1.5vw, 12px); margin-left: min(1.5vw, 12px); }
+
+  /* ---------- Hai nút chơi ở giữa ---------- */
+  .center { position: relative; z-index: 1; flex: 1; display: flex; align-items: center; justify-content: center;
+    gap: min(4vw, 42px); padding: 0 min(2vw, 20px); min-height: 0; }
+  .play-card { position: relative; width: min(36vw, 62vh); height: min(38vh, 260px); min-height: 132px;
+    background: linear-gradient(180deg, #e11d48, #be123c 60%, #9f1239); border-radius: min(3vh, 20px);
+    box-shadow: 0 10px 24px rgba(0,0,0,.45), inset 0 2px 0 rgba(255,255,255,.35);
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: min(2.5vh, 16px);
+    transition: transform .15s ease; }
+  .play-card:active { transform: scale(.96); }
+  .play-card h2 { font-size: clamp(15px, 3.6vh, 26px); letter-spacing: .5px; text-shadow: 0 2px 4px rgba(0,0,0,.4); }
+  .fan { position: absolute; top: -6%; left: 50%; width: 0; height: 0; }
+  .mini-card { position: absolute; width: min(9vw, 15vh); height: min(13.5vw, 22vh); min-width: 44px; min-height: 64px;
+    background: #fff; color: #111; border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,.4);
+    padding: 4px 0 0 5px; font-weight: 900; font-size: clamp(13px, 2.8vh, 20px); transform-origin: 50% 120%; }
+  .mini-card.red { color: #dc2626; }
+  .mini-card .big { position: absolute; left: 0; right: 0; bottom: 2px; text-align: center; font-size: clamp(18px, 4vh, 28px); }
+  .fan .mini-card:nth-child(1) { transform: translateX(-130%) rotate(-18deg); }
+  .fan .mini-card:nth-child(2) { transform: translateX(-90%) rotate(-6deg); }
+  .fan .mini-card:nth-child(3) { transform: translateX(-10%) rotate(6deg); }
+  .fan .mini-card:nth-child(4) { transform: translateX(30%) rotate(18deg); }
+  .chips { position: absolute; bottom: 22%; left: 50%; transform: translateX(-50%); display: flex; align-items: flex-end; }
+  .chip { width: min(7vw, 11vh); height: min(7vw, 11vh); min-width: 34px; min-height: 34px; border-radius: 50%;
+    border: 4px dashed rgba(255,255,255,.85); display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: clamp(11px, 2.4vh, 17px); box-shadow: 0 4px 8px rgba(0,0,0,.4); }
+  .chip + .chip { margin-left: -14px; }
+  .chip.red { background: #dc2626; } .chip.white { background: #f8fafc; color: #111; }
+  .chip.orange { background: #f97316; } .chip.black { background: #1f2937; }
+  .big-chip { width: min(11vw, 17vh); height: min(11vw, 17vh); min-width: 54px; min-height: 54px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fde68a, #f59e0b 60%, #b45309); border: 5px dashed #7c2d12;
+    display: flex; align-items: center; justify-content: center; font-size: min(5vh, 32px); font-weight: 900; color: #7c2d12;
+    position: absolute; bottom: 26%; right: 14%; box-shadow: 0 6px 12px rgba(0,0,0,.45); }
+
+  /* ---------- Thanh dưới ---------- */
+  .bottombar { position: relative; z-index: 2; display: flex; align-items: flex-end; justify-content: space-between;
+    padding: 0 min(2vw, 20px) min(2vh, 12px); }
+  .bottom-group { display: flex; align-items: center; gap: min(2vw, 16px); }
+  .bottom-btn { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    font-size: clamp(10px, 2.2vh, 14px); color: rgba(255,255,255,.9); }
+  .bottom-btn .circle { width: min(9vh, 58px); height: min(9vh, 58px); border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,.45); background: rgba(0,0,0,.3);
+    display: flex; align-items: center; justify-content: center; font-size: min(4vh, 26px); }
+  .badge { position: absolute; top: -4px; right: -2px; background: #ef4444; color: #fff; border-radius: 99px;
+    min-width: 22px; height: 22px; padding: 0 5px; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 900; border: 2px solid #fff; }
+  .spin { width: min(22vw, 34vh); height: min(11vw, 17vh); min-width: 120px; min-height: 60px; margin-bottom: -2px;
+    background: radial-gradient(ellipse at 50% 100%, #f59e0b, #b45309 70%); border: 3px solid #fde68a; border-bottom: none;
+    border-radius: 999px 999px 0 0; display: flex; align-items: flex-start; justify-content: center; padding-top: min(2vh, 12px);
+    font-weight: 900; letter-spacing: 2px; font-size: clamp(13px, 3vh, 20px); transition: transform .6s cubic-bezier(.2,.8,.2,1); }
+  .spin:active { transform: rotate(-18deg); }
+  .choose-table { width: min(11vh, 72px); height: min(11vh, 72px); border-radius: 50%; flex-shrink: 0;
+    background: radial-gradient(circle at 35% 30%, #f87171, #be123c 65%); border: 3px solid #fbbf24;
+    font-weight: 900; font-size: clamp(11px, 2.4vh, 16px); line-height: 1.15; box-shadow: 0 6px 14px rgba(0,0,0,.45); }
+  .choose-table:active { transform: scale(.93); }
+
+  .toast { position: absolute; left: 50%; top: 16%; transform: translateX(-50%); z-index: 10; background: rgba(0,0,0,.85);
+    border: 1.5px solid #facc15; color: #fef3c7; padding: 10px 20px; border-radius: 99px; font-weight: 700;
+    font-size: clamp(13px, 2.8vh, 18px); opacity: 0; pointer-events: none; transition: opacity .25s; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+
+  /* ---------- Chỉ dùng ngang: dọc thì nhắc xoay máy ---------- */
+  .rotate-hint { display: none; }
+  @media (orientation: portrait) {
+    .stage > :not(.rotate-hint) { display: none !important; }
+    .rotate-hint { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      height: 100dvh; text-align: center; padding: 24px; }
+    .rotate-hint .phone { font-size: 64px; animation: rot 1.6s ease-in-out infinite; }
+    .rotate-hint h2 { font-size: 22px; } .rotate-hint p { color: rgba(255,255,255,.75); line-height: 1.5; }
+    @keyframes rot { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(90deg); } }
+  }
+  /* Máy ngang quá thấp (dưới ~320px cao): thu nhỏ nút chơi, giữ không tràn */
+  @media (orientation: landscape) and (max-height: 360px) {
+    .play-card { height: 46vh; }
+    .bottom-btn .circle { width: 44px; height: 44px; }
+    .topbar { padding-top: 6px; }
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="rotate-hint">
+    <div class="phone">📱</div>
+    <h2>Xoay ngang điện thoại để chơi</h2>
+    <p>Màn hình này chỉ thiết kế cho điện thoại xoay ngang.<br>Xoay máy sang ngang là vào game ngay.</p>
+  </div>
+
+  <header class="topbar">
+    <div class="side-strip">
+      <button class="icon-btn" aria-label="Đóng" onclick="toast('Đã đóng')">✕</button>
+      <button class="icon-btn" aria-label="Menu" onclick="toast('Mở menu')">☰</button>
+    </div>
+    <div class="profile">
+      <div class="avatar">T</div>
+      <div class="who">
+        <b>Tung</b>
+        <div class="level"><span class="star">★</span> 115 <span class="bar"><i></i></span></div>
+      </div>
+    </div>
+    <div class="shop">
+      <span class="shop-label">CỬA HÀNG</span>
+      <span class="coins"><span class="coin">◎</span> 6,417,098</span>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn outline" aria-label="Bạn bè" onclick="toast('Mở danh sách bạn bè')">👥</button>
+      <button class="icon-btn outline" aria-label="Trợ giúp" onclick="toast('Mở hướng dẫn chơi')">?</button>
+      <button class="icon-btn outline" aria-label="Cài đặt" onclick="toast('Mở cài đặt')">⚙️</button>
+    </div>
+  </header>
+
+  <main class="center">
+    <button class="play-card" onclick="toast('Đang vào bàn chơi ngay…')">
+      <div class="fan">
+        <div class="mini-card">A<span class="big">♠</span></div>
+        <div class="mini-card red">A<span class="big">♦</span></div>
+        <div class="mini-card">A<span class="big">♣</span></div>
+        <div class="mini-card red">A<span class="big">♥</span></div>
+      </div>
+      <div class="chips">
+        <span class="chip red">●</span><span class="chip white">●</span><span class="chip orange">●</span><span class="chip black">●</span>
+      </div>
+      <h2>CHƠI NGAY</h2>
+    </button>
+    <button class="play-card" onclick="toast('Mời bạn vào bàn…')">
+      <div class="fan">
+        <div class="mini-card">K<span class="big">♠</span></div>
+        <div class="mini-card red">Q<span class="big">♦</span></div>
+        <div class="mini-card">J<span class="big">♣</span></div>
+        <div class="mini-card red">A<span class="big">♥</span></div>
+      </div>
+      <div class="big-chip">◎</div>
+      <h2>CHƠI VỚI BẠN</h2>
+    </button>
+  </main>
+
+  <footer class="bottombar">
+    <div class="bottom-group">
+      <button class="bottom-btn" onclick="toast('Mở thêm bạn')"><span class="circle">👤+</span></button>
+      <button class="bottom-btn" onclick="toast('Mở bảng xếp hạng')"><span class="circle">🏆</span></button>
+      <button class="bottom-btn" onclick="toast('Bạn có 10 quà mới')"><span class="circle">🎁</span><span class="badge">10</span></button>
+      <button class="bottom-btn" onclick="toast('Mở nhiệm vụ')"><span class="circle">📋</span></button>
+    </div>
+    <button class="spin" onclick="toast('Đang quay SPIN…')">SPIN</button>
+    <div class="bottom-group">
+      <button class="bottom-btn" onclick="toast('Mở Facebook')"><span class="circle">f</span></button>
+      <button class="bottom-btn" onclick="toast('Mở nhóm bạn')"><span class="circle">👥</span></button>
+      <button class="bottom-btn" onclick="toast('Mở túi đồ')"><span class="circle">🎒</span></button>
+      <button class="choose-table" onclick="toast('Mở chọn bàn')">CHỌN<br>BÀN</button>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast"></div>
+</div>
+<script>
+  let t;
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(t); t = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+</script>
+</body>
+</html>
