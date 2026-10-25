@@ -1,0 +1,17 @@
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#2a0505;color:#fff}
+header{padding:16px 20px;background:#450a0a;border-bottom:3px solid #facc15} header h1{margin:0;font-size:22px} header h1 span{color:#facc15;font-size:14px} header p{margin:6px 0 0;color:#fecaca}
+.panel{max-width:720px;margin:24px auto;background:#7f1d1d;border:1px solid #facc15;border-radius:16px;padding:20px}
+label{display:block;margin:12px 0} input,select{padding:8px;border-radius:8px;border:0;margin-left:8px}
+button{padding:10px 16px;border-radius:999px;border:0;cursor:pointer;background:#e5e7eb;color:#111;font-weight:600;margin:4px} button.gold,button:disabled{opacity:.9} button.gold{background:#facc15}
+.hidden{display:none!important} .note{color:#fecaca}
+#statusBar{display:flex;gap:16px;flex-wrap:wrap;padding:12px 20px;background:#450a0a;font-weight:600}
+#tableWrap{position:relative;min-height:380px;background:radial-gradient(circle,#991b1b,#450a0a);border:3px solid #facc15;border-radius:50%;margin:20px auto;max-width:900px;padding:30px}
+#opponents{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.opp{text-align:center;background:rgba(0,0,0,.35);padding:10px;border-radius:12px;min-width:110px} .opp.active{outline:3px solid #facc15}
+.mini-cards{display:flex;justify-content:center;margin-top:6px} .mini{width:18px;height:26px;background:#f8fafc;border:1px solid #111;border-radius:4px;margin-left:-6px}
+#center{text-align:center;margin-top:24px} #table{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;min-height:110px}
+.pair{position:relative;width:92px;height:110px;cursor:pointer} .pair .card{position:absolute;left:0;top:0} .pair .card.def{left:22px;top:18px}
+.card{width:72px;height:100px;background:#fff;color:#111;border-radius:10px;border:2px solid #111;padding:8px;font-weight:800;box-shadow:0 4px 10px rgba(0,0,0,.4);cursor:pointer;text-align:left}
+.card.red{color:#dc2626} .card.selected{outline:4px solid #facc15;transform:translateY(-8px)} .card.back{background:repeating-linear-gradient(45deg,#7c2d12,#7c2d12 8px,#991b1b 8px,#991b1b 16px);color:transparent}
+#actions{text-align:center} #myHand{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:16px;min-height:120px}
+#hint{text-align:center;color:#fde68a} #log{max-width:900px;margin:0 auto 24px;background:rgba(0,0,0,.35);padding:12px;border-radius:12px;max-height:160px;overflow:auto;font-size:14px}

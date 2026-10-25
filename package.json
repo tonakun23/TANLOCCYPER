@@ -1,0 +1,10 @@
+{
+  "name": "tanloccyper",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Tấn Online — game bài 2-4 người, luật VN-8, xu ảo chỉ trong game",
+  "scripts": {
+    "test": "node --test packages/game-core/test/game-core.test.js",
+    "web": "python3 -m http.server 8000"
+  }
+}

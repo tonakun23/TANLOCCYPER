@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tấn Online — TANLOCCYPER</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <h1>♠ TẤN ONLINE <span>· TANLOCCYPER</span></h1>
+  <p>Luật VN-8 · 2–4 người · Xu chỉ là điểm thưởng trong game, không nạp / rút tiền thật</p>
+</header>
+
+<section id="setup" class="panel">
+  <h2>Bắt đầu ván mới</h2>
+  <label>Tên của bạn <input id="playerName" value="Bạn" maxlength="20"></label>
+  <label>Số người chơi
+    <select id="playerCount">
+      <option value="2">2 người</option>
+      <option value="3">3 người</option>
+      <option value="4" selected>4 người</option>
+    </select>
+  </label>
+  <label><input type="checkbox" id="allowTransfer" checked> Cho phép chuyển tấn</label>
+  <button id="startBtn" class="gold">Chơi ngay (với bot)</button>
+  <p class="note">Bản này chơi offline với bot để kiểm luật. Phòng online realtime (Colyseus) là sprint tiếp theo, xem README.</p>
+</section>
+
+<section id="game" class="hidden">
+  <div id="statusBar">
+    <span id="status">—</span>
+    <span id="timer"></span>
+    <span id="trumpInfo"></span>
+    <span id="pileInfo"></span>
+  </div>
+  <div id="tableWrap">
+    <div id="opponents"></div>
+    <div id="center">
+      <div id="table"></div>
+      <div id="centerInfo"></div>
+    </div>
+  </div>
+  <div id="actions">
+    <button id="finishBtn">Kết thúc đợt</button>
+    <button id="takeBtn">Nhận bài</button>
+    <button id="transferBtn">Chuyển tấn (chọn lá cùng hạng)</button>
+    <button id="passBtn">Không thêm nữa</button>
+    <button id="newBtn">Ván mới</button>
+  </div>
+  <div id="myHand"></div>
+  <p id="hint"></p>
+  <div id="log"></div>
+  <div id="result" class="hidden panel"></div>
+</section>
+<script type="module" src="app.js"></script>
+</body>
+</html>
