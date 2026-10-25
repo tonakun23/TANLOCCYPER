@@ -30,7 +30,7 @@ interface GameStore {
   chat: ChatMsg[];
   setPlayerName: (v: string) => void; setPlayerCount: (v: number) => void; setAllowTransfer: (v: boolean) => void;
   startGame: () => void; backToLobby: () => void; goToRooms: () => void; goToCreate: (isPrivate: boolean) => void; setRoomCode: (code: string | null) => void; setSelected: (v: string | null) => void;
-  playCard: (cardId: string) => void; defendPair: (attackId: string) => void;
+  playCard: (cardId: string) => void; defendPair: (attackId: string, defenseCardId?: string) => void;
   takeCards: () => void; finishAttackAction: () => void; transferCard: () => void; passAdd: () => void;
   drawCards: () => Promise<void>; runDrawPhase: () => Promise<void>;
   runBots: () => Promise<void>; addLog: (msg: string) => void;
@@ -111,8 +111,13 @@ store.setState({
     if (game.defenderId === HUMAN_ID) {
       const card = parseCard(cardId);
       const beatable = game.table.filter((x) => !x.defense && canBeat(x.attack, card, game.trumpSuit));
-      if (beatable.length === 1) { store.getState().defendPair(beatable[0].attack.id); return; }
-      store.setState({ selected: cardId }); return;
+      // BUG cũ: defendPair đọc `selected` trong store, mà lúc bấm lá thì selected
+      // vẫn rỗng nên nó return im lặng, không đỡ gì cả. Giờ truyền thẳng lá vừa bấm.
+      if (beatable.length === 1) { store.getState().defendPair(beatable[0].attack.id, cardId); return; }
+      if (beatable.length > 1) { store.setState({ selected: cardId }); store.getState().addLog(`Dùng ${cardLabel(card)} đỡ lá nào? Bấm 1 lá tấn trên bàn để chọn.`); return; }
+      store.setState({ selected: cardId });
+      store.getState().addLog(`${cardLabel(card)} không đỡ được lá nào trên bàn, thử lá khác hoặc bấm Lên bài.`);
+      return;
     }
     const card = me.hand.find((c) => c.id === cardId);
     if (card && canAttackCard(game, HUMAN_ID, card)) {
@@ -121,11 +126,12 @@ store.setState({
     } else { store.setState({ selected: cardId }); }
     void selected;
   },
-  defendPair: (attackId: string) => {
+  defendPair: (attackId: string, defenseCardId?: string) => {
     const { game, selected } = store.getState();
-    if (!game || !selected) return;
+    const defenseId = defenseCardId || selected;
+    if (!game || !defenseId) return;
     const before = tableIds(game);
-    try { defend(game, HUMAN_ID, attackId, selected); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), selected: null, humanAddPassed: false, flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); store.getState().addLog(`Bạn đỡ ${attackId} bằng ${selected}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
+    try { defend(game, HUMAN_ID, attackId, defenseId); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), selected: null, humanAddPassed: false, flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); store.getState().addLog(`Bạn đỡ ${attackId} bằng ${cardLabel(parseCard(defenseId))}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
   },
   takeCards: () => {
     const { game } = store.getState(); if (!game) return;

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useGameStore, HUMAN_ID } from "./store";
 import { CardView } from "./components/CardView";
 import { TableCanvas } from "./components/TableCanvas";
-import { parseCard, SUIT_NAME, SUIT_SYMBOL } from "../../../packages/game-core/src/engine";
+import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, cardLabel } from "../../../packages/game-core/src/engine";
 import { X, Menu, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, } from "lucide-react";
 const ic = { size: 22, strokeWidth: 2 };
 
@@ -305,12 +305,13 @@ export default function App() {
           <CardView card={parseCard(s.flying.cardId)} />
         </div>
       )}
-      {/* Bàn 4 góc: mỗi người ở 1 góc bàn. Đối thủ chỉ hiện 1 lá úp + badge số lá,
-          không xòe cả bộ. Góc: đối thủ 1 = trái trên, 2 = phải trên, 3 = trái dưới, mình = phải dưới. */}
+      {/* Đối thủ đối diện nhau quanh bàn (không xếp 4 góc nữa): 1 đối thủ = trên giữa
+          (đối diện mình), 2 đối thủ = trái giữa + phải giữa (đối diện nhau),
+          3 đối thủ = trên + trái + phải. Mỗi đối thủ chỉ 1 lá úp + badge số lá. */}
       <div className="flex-1 min-h-0 w-full relative flex flex-col">
         <TableCanvas game={game} />
         {game.players.filter((p) => p.id !== HUMAN_ID).map((p, idx) => {
-          const pos = ["absolute top-2 left-2", "absolute top-2 right-2", "absolute bottom-2 left-2"][idx] || "absolute top-2 left-2";
+          const pos = ["absolute top-2 left-1/2 -translate-x-1/2", "absolute left-2 top-1/2 -translate-y-1/2", "absolute right-2 top-1/2 -translate-y-1/2"][idx] || "absolute top-2 left-1/2 -translate-x-1/2";
           return (
             <div key={p.id} className={`${pos} z-20 flex items-center gap-2 bg-black/55 px-2 py-1 rounded-xl text-sm ${p.id === game.attackerId || p.id === game.defenderId ? "outline outline-yellow-400" : ""}`}>
               <img src={`/durak/ui/avatar_${(idx % 3) + 1}.png`} alt={p.name} className="w-11 h-11 rounded-full shrink-0" />
@@ -322,14 +323,10 @@ export default function App() {
             </div>
           );
         })}
-        <div className="absolute bottom-2 right-2 z-20 flex items-center gap-2 bg-black/55 px-2 py-1 rounded-xl text-sm">
-          <div className="tan-avatar" style={{ width: 44, height: 44, fontSize: 20 }}>{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>
-          <span className="whitespace-nowrap flex flex-col leading-tight"><b>{s.playerName || "Bạn"}</b><span>{me?.hand.length ?? 0} lá</span></span>
-        </div>
         {/* Hiệu ứng bốc bài: lá bay từ nọc giữa bàn tới góc người bốc */}
         {s.drawFlying && (() => {
           const opps = game.players.filter((p) => p.id !== HUMAN_ID);
-          const corner = s.drawFlying.toId === HUMAN_ID ? "br" : ["tl", "tr", "bl"][opps.findIndex((p) => p.id === s.drawFlying!.toId)] || "tl";
+          const corner = s.drawFlying.toId === HUMAN_ID ? "bottom" : ["top", "left", "right"][opps.findIndex((p) => p.id === s.drawFlying!.toId)] || "top";
           return (
             <div key={s.drawFlying.key} className={`flying-draw flying-draw-${corner}`}>
               {s.drawFlying.toId === HUMAN_ID ? <CardView card={parseCard(s.drawFlying.cardId)} /> : <img src="/durak/cards/back.png" alt="" className="w-[72px] h-[100px] rounded-[10px]" />}
@@ -337,6 +334,20 @@ export default function App() {
           );
         })()}
       </div>
+      {/* Khi 1 lá đỡ được nhiều lá tấn: hiện nút chọn lá tấn để đỡ (bàn vẽ bằng canvas nên không bấm trực tiếp được). */}
+      {iAmDefender && s.selected && (() => {
+        const sel = parseCard(s.selected as string);
+        const beatable = game.table.filter((x) => !x.defense && canBeat(x.attack, sel, game.trumpSuit));
+        if (beatable.length <= 1) return null;
+        return (
+          <div className="text-center py-1 shrink-0 bg-black/50">
+            <span className="font-semibold text-yellow-200 text-sm mr-2">Dùng {cardLabel(sel)} đỡ lá nào?</span>
+            {beatable.map((x) => (
+              <button key={x.attack.id} className="bg-yellow-400 text-black font-bold px-3 py-1 rounded-full text-sm mx-1" onClick={() => s.defendPair(x.attack.id, s.selected as string)}>{cardLabel(x.attack)}</button>
+            ))}
+          </div>
+        );
+      })()}
       <div className="text-center space-x-2 py-2 shrink-0">
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmAttacker && allDefended)} onClick={s.finishAttackAction}>Kết thúc đợt</button>
         <button className="bg-red-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmDefender && game.table.length > 0)} onClick={s.takeCards}>Lên bài</button>
