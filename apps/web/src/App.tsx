@@ -400,7 +400,7 @@ export default function App() {
         );
       })()}
       <div className="text-center space-x-2 py-2 shrink-0 relative">
-        <button className="bg-white text-black font-semibold px-4 py-2 rounded-full" title="Bấm là tự xếp, bấm lại đổi kiểu" onClick={() => { const next = lastSort === "suit" ? "rank" : "suit"; s.sortHand(next); setLastSort(next); }}><span className="flex items-center gap-1"><ArrowDownWideNarrow size={16} /> Xếp bài{lastSort === "suit" ? " · theo chất" : lastSort === "rank" ? " · theo hạng" : ""}</span></button>
+        <button className="bg-white text-black font-semibold px-4 py-2 rounded-full" title="Bấm là tự xếp, bấm lại đổi kiểu" onClick={() => { const next = lastSort === "suit" ? "rank" : "suit"; s.sortHand(next); setLastSort(next); }}><span className="flex items-center gap-1"><ArrowDownWideNarrow size={16} /> Xếp bài</span></button>
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmAttacker && allDefended)} onClick={s.finishAttackAction}>Kết thúc đợt</button>
         <button className="bg-red-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmDefender && game.table.length > 0)} onClick={s.takeCards}>Lên bài</button>
         <button className="bg-green-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(game.phase === "DRAWING" && game.pendingDraw[0] === HUMAN_ID && !s.drawing)} onClick={s.drawCards}>Bốc bài</button>
