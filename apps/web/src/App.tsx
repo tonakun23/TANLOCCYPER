@@ -3,7 +3,7 @@ import { useGameStore } from "./store";
 import { CardView } from "./components/CardView";
 import { TableCanvas } from "./components/TableCanvas";
 import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, canAttackCard, cardLabel } from "../../../packages/game-core/src/engine";
-import { X, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, Crown, } from "lucide-react";
+import { X, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, Crown, LogOut, } from "lucide-react";
 import { playDealSound, playCardSound, playTrumpAceSound, setSoundEnabled, setSoundVolume } from "./game/sound";
 const ic = { size: 22, strokeWidth: 2 };
 
@@ -152,7 +152,7 @@ export default function App() {
   const homeTop = (
     <div className="tan-top">
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div className="tan-avatar">{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>
+        {s.googleUser?.avatar ? <img src={s.googleUser.avatar} alt="" className="tan-avatar" style={{ objectFit: "cover" }} /> : <div className="tan-avatar">{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>}
         <div>
           <input className="bg-transparent font-bold outline-none" style={{ fontSize: "clamp(14px, 3.2vh, 22px)", width: 140 }} value={s.playerName} onChange={(e) => s.setPlayerName(e.target.value)} aria-label="Tên của bạn" />
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700 }}>TẤN ONLINE · VN-8 · 2–4 người</div>
@@ -165,6 +165,7 @@ export default function App() {
         <button className="tan-icon" style={{ cursor: "default" }} aria-label="Bạn bè (chưa mở)"><Users {...ic} /></button>
         <button className="tan-icon" aria-label="Hướng dẫn luật chơi" onClick={() => setHelpOpen(true)}><HelpCircle {...ic} /></button>
         <button className="tan-icon" aria-label="Cài đặt âm thanh" onClick={() => setSettingsOpen(true)}><Settings {...ic} /></button>
+        {s.googleUser && <button className="tan-icon" aria-label="Đăng xuất" title="Đăng xuất" onClick={() => void s.googleLogout()}><LogOut {...ic} /></button>}
       </div>
     </div>
   );
@@ -361,26 +362,6 @@ export default function App() {
     return (
       <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
         {homeTop}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "8px 0" }}>
-          {s.googleUser ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}>
-              {s.googleUser.avatar && <img src={s.googleUser.avatar} alt="" className="w-9 h-9 rounded-full" />}
-              <span style={{ fontWeight: 700 }}>Đã đăng nhập Google: {s.googleUser.name}</span>
-              <button className="bg-white text-black font-bold px-3 py-1 rounded-full text-sm" onClick={() => void s.googleLogout()}>Đăng xuất</button>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-              {s.configLoading ? (
-                <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13 }}>Đang tải đăng nhập…</p>
-              ) : s.firebaseConfig ? (
-                <button className="bg-white text-black font-bold px-4 py-2 rounded-full text-sm" onClick={async () => { try { await s.firebaseLogin(); setGoogleError(""); } catch (e) { setGoogleError((e as Error).message); } }}>Đăng nhập bằng Google</button>
-              ) : (
-                <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13, textAlign: "center", padding: "0 16px" }}>Đăng nhập Google chưa cấu hình (cần Firebase config trên Render) - bạn vẫn chơi khách bằng tên ở trên, hoặc chơi với bot ngay.</p>
-              )}
-              {googleError && <p style={{ color: "#f87171", fontSize: 13 }}>{googleError}</p>}
-            </div>
-          )}
-        </div>
         <div className="tan-center">
           <button className="tan-play" onClick={s.goToRooms}>
             <div className="tan-fan">
