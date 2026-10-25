@@ -23,7 +23,7 @@ export interface ChatMsg { id: number; from: string; text: string; }
 const BOT_REPLIES = ["Chơi hay đấy!", "Lá này khó đỡ quá!", "Tới lượt bạn rồi kìa.", "Haha, ván này căng!", "Để xem bạn đỡ sao đây.", "Bài mình cũng không đẹp lắm đâu."];
 
 interface GameStore {
-  screen: "login" | "lobby" | "rooms" | "create" | "waiting" | "game"; waitingCode: string | null; waitingCount: number; waitingReady: boolean; waitingMode: "private" | "quick" | "join"; myId: string; onlineMode: boolean; onlineRoom: { code: string; bet: string; maxPlayers: number; hostId: string; state: string; players: { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean }[] } | null; onlineMyLobbyId: string | null; onlineWsStatus: string; onlineError: string | null; googleUser: { name: string; email: string; avatar: string | null } | null; firebaseConfig: Record<string, string> | null; authError: string | null;
+  screen: "login" | "lobby" | "rooms" | "create" | "waiting" | "game"; waitingCode: string | null; waitingCount: number; waitingReady: boolean; waitingMode: "private" | "quick" | "join"; myId: string; onlineMode: boolean; onlineRoom: { code: string; bet: string; maxPlayers: number; hostId: string; state: string; players: { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean }[] } | null; onlineMyLobbyId: string | null; onlineWsStatus: string; onlineError: string | null; googleUser: { name: string; email: string; avatar: string | null } | null; firebaseConfig: Record<string, string> | null; authError: string | null; configLoading: boolean;
   // Mã phòng riêng (chơi với bạn): hiện luôn góc phải trong ván, thoát ván là hết.
   roomCode: string | null; createPrivate: boolean;
   playerName: string; playerCount: number; allowTransfer: boolean;
@@ -63,7 +63,7 @@ function tableIds(game: GameState): Set<string> {
 }
 
 export const useGameStore = create<GameStore>()((set, get) => ({
-  screen: "login", roomCode: null, waitingCode: null, waitingCount: 4, waitingReady: false, waitingMode: "private", myId: HUMAN_ID, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, onlineWsStatus: "disconnected", onlineError: null, googleUser: null, firebaseConfig: null, authError: null, createPrivate: false, playerName: "Bạn", playerCount: 4, allowTransfer: true,
+  screen: "login", roomCode: null, waitingCode: null, waitingCount: 4, waitingReady: false, waitingMode: "private", myId: HUMAN_ID, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, onlineWsStatus: "disconnected", onlineError: null, googleUser: null, firebaseConfig: null, authError: null, configLoading: true, createPrivate: false, playerName: "Bạn", playerCount: 4, allowTransfer: true,
   game: null, selected: null, humanAddPassed: false, botBusy: false,
   notice: null, noticeKey: 0, flying: null, drawFlying: null, drawing: false, chat: [],
   setPlayerName: (v) => set({ playerName: v }),
@@ -370,9 +370,20 @@ store.setState({
   onlineLeave: () => { try { onlineSend({ type: "leave" }); } catch { /* bỏ qua */ } try { onlineWs?.close(); } catch { /* bỏ qua */ } store.setState({ onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, game: null, screen: "lobby" }); },
   setGoogleUser: (u: { name: string; email: string; avatar: string | null } | null) => { store.setState({ googleUser: u }); if (u) store.setState({ playerName: u.name }); },
   loadFirebaseConfig: async () => {
+    // Backend Render gói free ngủ đông: lần gọi đầu có thể chậm 30-50s, nên không vội kết luận
+    // là "chưa cấu hình" khi fetch chưa xong; thử lại tối đa 3 lần rồi mới thôi.
+    store.setState({ configLoading: true });
+    let j: { firebaseConfig?: Record<string, string> | null } | null = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+    for (let attempt = 0; attempt < 3 && !j?.firebaseConfig; attempt++) {
+      try {
+        const r = await fetch(`${API_BASE}/auth/config`); j = await r.json();
+        if (j?.firebaseConfig) break;
+      } catch { /* thử lại */ }
+      if (!j?.firebaseConfig && attempt < 2) await new Promise((res) => setTimeout(res, 3000));
+    }
+    if (!j?.firebaseConfig) { store.setState({ configLoading: false }); return; }
     try {
-      const r = await fetch(`${API_BASE}/auth/config`); const j = await r.json(); if (!j.firebaseConfig) return;
-      store.setState({ firebaseConfig: j.firebaseConfig, authError: null });
+      store.setState({ firebaseConfig: j.firebaseConfig, authError: null, configLoading: false });
       // Đổi token Firebase lấy session backend (dùng chung cho cả redirect và watch).
       const exchange = async (fb: { idToken: string }) => {
         const rr = await fetch(`${API_BASE}/auth/firebase`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: fb.idToken }) });
@@ -384,7 +395,7 @@ store.setState({
       // 1) Vừa quay lại từ Google: lấy kết quả redirect trực tiếp (đáng tin hơn watch trong trường hợp này).
       try {
         const { handleGoogleRedirect } = await import("./game/firebase-auth");
-        const fb = await handleGoogleRedirect(j.firebaseConfig);
+        const fb = await handleGoogleRedirect(j.firebaseConfig as unknown as Parameters<typeof handleGoogleRedirect>[0]);
         if (fb) await exchange(fb);
       } catch (e) { store.setState({ authError: (e as Error).message }); }
       // 2) Theo dõi trạng thái Firebase: đã đăng nhập từ trước (tải lại trang) cũng vào đây;
@@ -393,7 +404,7 @@ store.setState({
         const { watchFirebaseUser } = await import("./game/firebase-auth");
         if (!(globalThis as unknown as { __tanlocWatch?: boolean }).__tanlocWatch) {
           (globalThis as unknown as { __tanlocWatch?: boolean }).__tanlocWatch = true;
-          watchFirebaseUser(j.firebaseConfig, async (fb) => {
+          watchFirebaseUser(j.firebaseConfig as unknown as Parameters<typeof watchFirebaseUser>[0], async (fb) => {
             if (!fb) return;
             try { await exchange(fb); } catch (e) { store.setState({ authError: (e as Error).message }); }
           });

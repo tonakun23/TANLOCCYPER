@@ -319,7 +319,9 @@ export default function App() {
           </div>
           <div style={{ textAlign: "center", position: "relative" }}>
             <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: 340, height: 340, borderRadius: "50%", background: "radial-gradient(circle, rgba(250,204,21,.35), rgba(250,204,21,0) 70%)", pointerEvents: "none" }} />
-            {s.firebaseConfig ? (
+            {s.configLoading ? (
+              <p style={{ color: "rgba(255,255,255,.85)", fontSize: 15 }}>Đang tải đăng nhập…</p>
+            ) : s.firebaseConfig ? (
               <button className="bg-white text-black font-bold px-8 py-3 rounded-full text-lg relative" style={{ boxShadow: "0 0 50px rgba(250,204,21,.55)" }} onClick={async () => { try { await s.firebaseLogin(); setGoogleError(""); } catch (e) { setGoogleError((e as Error).message); } }}>Đăng nhập bằng Google</button>
             ) : (
               <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13 }}>Đăng nhập Google chưa cấu hình (cần Firebase config trên Render).</p>
@@ -344,7 +346,9 @@ export default function App() {
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-              {s.firebaseConfig ? (
+              {s.configLoading ? (
+                <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13 }}>Đang tải đăng nhập…</p>
+              ) : s.firebaseConfig ? (
                 <button className="bg-white text-black font-bold px-4 py-2 rounded-full text-sm" onClick={async () => { try { await s.firebaseLogin(); setGoogleError(""); } catch (e) { setGoogleError((e as Error).message); } }}>Đăng nhập bằng Google</button>
               ) : (
                 <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13, textAlign: "center", padding: "0 16px" }}>Đăng nhập Google chưa cấu hình (cần Firebase config trên Render) - bạn vẫn chơi khách bằng tên ở trên, hoặc chơi với bot ngay.</p>
