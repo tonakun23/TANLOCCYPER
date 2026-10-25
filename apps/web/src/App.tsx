@@ -23,20 +23,37 @@ export default function App() {
   const iAmAttacker = game?.attackerId === HUMAN_ID;
   const undefended = game?.table.filter((x) => !x.defense) ?? [];
   const allDefended = !!game && game.table.length > 0 && game.table.every((x) => x.defense);
-  const myTurn = !!game && game.phase !== "FINISHED" && ((iAmDefender && undefended.length > 0) || (iAmAttacker && game.table.length === 0));
-
+  // Thời gian đỡ: 30 giây, tính cho MỌI người đỡ (cả bot, để vẽ vòng sáng).
+  // Khóa reset: đổi người đỡ, hoặc số lá trên bàn tăng (có người tấn thêm) thì
+  // reset về 30. Đỡ 1 lá (số lá không đổi) thì KHÔNG reset.
+  const isDefending = !!game && game.phase !== "FINISHED" && game.phase !== "DRAWING" && game.table.length > 0 && undefended.length > 0;
+  const defendKey = isDefending && game ? `${game.defenderId}-${game.table.length}` : "";
+  const [defendSeconds, setDefendSeconds] = useState(30);
+  useEffect(() => { if (defendKey) setDefendSeconds(30); }, [defendKey]);
   useEffect(() => {
-    if (!myTurn) { setSeconds(30); return; }
-    const id = setInterval(() => setSeconds((v) => {
+    if (!isDefending) return;
+    const id = setInterval(() => setDefendSeconds((v) => {
       if (v <= 1) {
-        if (game && iAmDefender) s.takeCards();
-        else if (game && me) s.autoLowestAttack();
+        // Hết giờ đỡ mà không đỡ: coi như tự lên bài (chỉ áp dụng cho người chơi).
+        if (game && game.defenderId === HUMAN_ID) s.takeCards();
         return 30;
       }
       return v - 1;
     }), 1000);
     return () => clearInterval(id);
-  }, [myTurn, game, iAmDefender, me, s]);
+  }, [isDefending, game, s]);
+  const defendFraction = defendSeconds / 30;
+
+  // Hết giờ tấn (lượt mình tấn mà chưa đánh): tự đánh lá thấp nhất, giữ 30 giây cũ.
+  const myAttackTurn = !!game && game.phase !== "FINISHED" && iAmAttacker && game.table.length === 0;
+  useEffect(() => {
+    if (!myAttackTurn) { setSeconds(30); return; }
+    const id = setInterval(() => setSeconds((v) => {
+      if (v <= 1) { if (me) s.autoLowestAttack(); return 30; }
+      return v - 1;
+    }), 1000);
+    return () => clearInterval(id);
+  }, [myAttackTurn, me, s]);
 
   const trumpMarker: Record<string, string> = { S: "spades", C: "clubs", H: "hearts", D: "diamonds" };
   // Phòng Tấn theo từng hạng — chỉ là điểm thưởng trong game, KHÔNG tiền thật.
@@ -283,7 +300,7 @@ export default function App() {
         <span className="flex items-center gap-3">
           <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 flex items-center justify-center" title="Về sảnh" onClick={s.backToLobby}><X size={18} /></button>
           <span>{game.phase === "FINISHED" ? "Ván đã kết thúc" : `${game.players.find((p) => p.id === game.attackerId)?.name} tấn · ${game.players.find((p) => p.id === game.defenderId)?.name} đỡ`}</span>
-          {myTurn && <span className="flex items-center gap-1"><Timer size={18} /> {seconds}s</span>}
+          {isDefending ? <span className="flex items-center gap-1"><Timer size={18} /> Đỡ: {defendSeconds}s</span> : myAttackTurn ? <span className="flex items-center gap-1"><Timer size={18} /> {seconds}s</span> : null}
           <span className="flex items-center gap-1">Chủ: {SUIT_NAME[game.trumpSuit]} <img src={`/durak/ui/trump_marker_${trumpMarker[game.trumpSuit]}.png`} alt={SUIT_NAME[game.trumpSuit]} className="w-6 h-6" /></span>
           <span>Nọc: {game.drawPile.length} lá</span>
         </span>
@@ -314,7 +331,10 @@ export default function App() {
           const pos = ["absolute top-2 left-1/2 -translate-x-1/2", "absolute left-2 top-1/2 -translate-y-1/2", "absolute right-2 top-1/2 -translate-y-1/2"][idx] || "absolute top-2 left-1/2 -translate-x-1/2";
           return (
             <div key={p.id} className={`${pos} z-20 flex items-center gap-2 bg-black/55 px-2 py-1 rounded-xl text-sm ${p.id === game.attackerId || p.id === game.defenderId ? "outline outline-yellow-400" : ""}`}>
-              <img src={`/durak/ui/avatar_${(idx % 3) + 1}.png`} alt={p.name} className="w-11 h-11 rounded-full shrink-0" />
+              <div className="relative shrink-0" style={p.id === game.defenderId && isDefending ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
+                <img src={`/durak/ui/avatar_${(idx % 3) + 1}.png`} alt={p.name} className="w-11 h-11 rounded-full block" />
+                {p.id === game.defenderId && isDefending && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-400 text-black font-black text-[11px] px-1.5 rounded-full border border-white">{defendSeconds}s</span>}
+              </div>
               <div className="relative shrink-0">
                 <img src="/durak/cards/back.png" alt="Bài úp" className="w-9 h-12 rounded" />
                 <span className="absolute -top-2 -right-2 bg-yellow-400 text-black font-black text-xs w-6 h-6 rounded-full flex items-center justify-center border-2 border-white">{p.hand.length}</span>
@@ -357,6 +377,10 @@ export default function App() {
         <button className="bg-yellow-400 text-black font-semibold px-4 py-2 rounded-full" onClick={s.backToLobby}>Ván mới</button>
       </div>
       <div className="flex justify-center items-center flex-wrap shrink-0 px-2 pb-2 gap-2">
+        <div className="relative shrink-0" style={iAmDefender && isDefending ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
+          <div className="tan-avatar" style={{ width: 44, height: 44, fontSize: 20 }}>{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>
+          {iAmDefender && isDefending && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-400 text-black font-black text-[11px] px-1.5 rounded-full border border-white">{defendSeconds}s</span>}
+        </div>
         {me?.hand.map((c, i) => (
           <div key={c.id} className={i === 0 ? "" : "-ml-6"}>
             <CardView card={c} selected={s.selected === c.id} onClick={() => s.playCard(c.id)} />
