@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280" width="200" height="280" role="img" aria-label="Q♥">
+  <rect x="2" y="2" width="196" height="276" rx="16" fill="#ffffff" stroke="#9ca3af" stroke-width="2"/>
+  <text x="20" y="36" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#c81e1e" text-anchor="middle">Q</text>
+  <text x="20" y="62" font-family="Georgia,serif" font-size="22" fill="#c81e1e" text-anchor="middle">♥</text>
+  <g transform="rotate(180 180 244)">
+    <text x="180" y="244" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#c81e1e" text-anchor="middle">Q</text>
+    <text x="180" y="270" font-family="Georgia,serif" font-size="22" fill="#c81e1e" text-anchor="middle">♥</text>
+  </g>
+  <defs><clipPath id="clip"><rect x="36" y="54" width="128" height="172" rx="8"/></clipPath></defs><rect x="36" y="54" width="128" height="172" rx="8" fill="#fdf6e3" stroke="#c81e1e" stroke-width="3"/>
+    <g clip-path="url(#clip)"><g id="fig">
+      <polygon points="80,88 120,88 114,62 107,76 100,60 93,76 86,62" fill="#facc15" stroke="#92400e" stroke-width="1.5"/>
+      <circle cx="100" cy="104" r="17" fill="#f2c9a0" stroke="#111" stroke-width="1"/>
+      <circle cx="94" cy="102" r="1.8" fill="#111"/><circle cx="106" cy="102" r="1.8" fill="#111"/>
+      <path d="M84,96 Q82,118 90,124 L110,124 Q118,118 116,96 Q108,88 100,88 Q92,88 84,96 Z" fill="#f2c9a0" opacity="0.35"/>
+      <path d="M68,128 L132,128 L142,170 L58,170 Z" fill="#7c2d5e" stroke="#111" stroke-width="1"/>
+      <text x="100" y="156" font-family="Georgia,serif" font-size="26" fill="#facc15" text-anchor="middle">♥</text>
+    </g><use href="#fig" transform="rotate(180 100 140)"/></g>
+</svg>

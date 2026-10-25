@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280" width="200" height="280" role="img" aria-label="4♠">
+  <rect x="2" y="2" width="196" height="276" rx="16" fill="#ffffff" stroke="#9ca3af" stroke-width="2"/>
+  <text x="20" y="36" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#111111" text-anchor="middle">4</text>
+  <text x="20" y="62" font-family="Georgia,serif" font-size="22" fill="#111111" text-anchor="middle">♠</text>
+  <g transform="rotate(180 180 244)">
+    <text x="180" y="244" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#111111" text-anchor="middle">4</text>
+    <text x="180" y="270" font-family="Georgia,serif" font-size="22" fill="#111111" text-anchor="middle">♠</text>
+  </g>
+  <text x="55" y="85" font-family="Georgia,serif" font-size="34" fill="#111111" text-anchor="middle" dominant-baseline="middle">♠</text>
+    <text x="145" y="85" font-family="Georgia,serif" font-size="34" fill="#111111" text-anchor="middle" dominant-baseline="middle">♠</text>
+    <text x="55" y="195" font-family="Georgia,serif" font-size="34" fill="#111111" text-anchor="middle" dominant-baseline="middle" transform="rotate(180 55 195)">♠</text>
+    <text x="145" y="195" font-family="Georgia,serif" font-size="34" fill="#111111" text-anchor="middle" dominant-baseline="middle" transform="rotate(180 145 195)">♠</text>
+</svg>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280" width="200" height="280" role="img" aria-label="10♦">
+  <rect x="2" y="2" width="196" height="276" rx="16" fill="#ffffff" stroke="#9ca3af" stroke-width="2"/>
+  <text x="20" y="36" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#c81e1e" text-anchor="middle">10</text>
+  <text x="20" y="62" font-family="Georgia,serif" font-size="22" fill="#c81e1e" text-anchor="middle">♦</text>
+  <g transform="rotate(180 180 244)">
+    <text x="180" y="244" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#c81e1e" text-anchor="middle">10</text>
+    <text x="180" y="270" font-family="Georgia,serif" font-size="22" fill="#c81e1e" text-anchor="middle">♦</text>
+  </g>
+  <text x="55" y="80" font-family="Georgia,serif" font-size="34" fill="#c81e1e" text-anchor="middle" dominant-baseline="middle">♦</text>
+    <text x="145" y="80" font-family="Georgia,serif" font-size="34" fill="#c81e1e" text-anchor="middle" dominant-baseline="middle">♦</text>
+    <text x="55" y="115" font-family="Georgia,serif" font-size="34" fill="#c81e1e" text-anchor="middle" dominant-baseline="middle">♦</text>
+    <text x="145" y="115" font-family="Georgia,serif" font-size="34" fill="#c81e1e" text-anchor="middle" dominant-baseline="middle">♦</text>
+    <text x="100" y="97" font-family="Georgia,serif" font-size="34" fill="#c81e1e" text-anchor="middle" dominant-baseline="middle">♦</text>
+    <text x="55" y="165" font-family="Georgia,serif" font-size="34" fill="#c81e1e" text-anchor="middle" dominant-baseline="middle" transform="rotate(180 55 165)">♦</text>
+    <text x="145" y="165" font-family="Georgia,serif" font-size="34" fill="#c81e1e" text-anchor="middle" dominant-baseline="middle" transform="rotate(180 145 165)">♦</text>
+    <text x="55" y="200" font-family="Georgia,serif" font-size="34" fill="#c81e1e" text-anchor="middle" dominant-baseline="middle" transform="rotate(180 55 200)">♦</text>
+    <text x="145" y="200" font-family="Georgia,serif" font-size="34" fill="#c81e1e" text-anchor="middle" dominant-baseline="middle" transform="rotate(180 145 200)">♦</text>
+    <text x="100" y="183" font-family="Georgia,serif" font-size="34" fill="#c81e1e" text-anchor="middle" dominant-baseline="middle" transform="rotate(180 100 183)">♦</text>
+</svg>
