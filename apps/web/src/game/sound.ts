@@ -48,3 +48,10 @@ export function playCardSound() {
   noise(0.05, 0.6); click(1400, 0.05, 0.4, 0.01);
 }
 export function playDrawSound() { noise(0.07, 0.45); click(700, 0.05, 0.25, 0.05); }
+
+export function playTrumpAceSound() {
+  // A chủ ra bàn: tiếng nổ trầm + dãy nốt vút lên, nghe "dồn" và mạnh.
+  noise(0.25, 0.9); click(180, 0.25, 0.7);
+  [523, 659, 784, 1046].forEach((f, i) => click(f, 0.22, 0.5, 0.08 + i * 0.09));
+  click(1568, 0.3, 0.4, 0.5);
+}

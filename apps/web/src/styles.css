@@ -101,3 +101,12 @@ body { background: #1b3a1b; margin: 0; }
 .card-suit { font-size: 18px; line-height: 1.2; }
 .card-big { position: absolute; left: 0; right: 0; bottom: -10px; text-align: center; font-size: 56px; line-height: 1; }
 .card-face { position: absolute; left: 0; right: 0; bottom: 0; height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 18px; }
+
+/* Hiệu ứng A chủ: chớp vàng + tia xoay + vòng sóng + chữ bật lên, 1.2s rồi tự hết (theo flying). */
+.trump-ace-effect { position: absolute; left: 50%; top: 50%; width: 320px; height: 320px; transform: translate(-50%, -50%); z-index: 45; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+.trump-ace-rays { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, rgba(250,204,21,.85) 0deg 12deg, transparent 12deg 30deg, rgba(250,204,21,.85) 30deg 42deg, transparent 42deg 60deg, rgba(250,204,21,.85) 60deg 72deg, transparent 72deg 90deg, rgba(250,204,21,.85) 90deg 102deg, transparent 102deg 120deg, rgba(250,204,21,.85) 120deg 132deg, transparent 132deg 150deg, rgba(250,204,21,.85) 150deg 162deg, transparent 162deg 180deg, rgba(250,204,21,.85) 180deg 192deg, transparent 192deg 210deg, rgba(250,204,21,.85) 210deg 222deg, transparent 222deg 240deg, rgba(250,204,21,.85) 240deg 252deg, transparent 252deg 270deg, rgba(250,204,21,.85) 270deg 282deg, transparent 282deg 300deg, rgba(250,204,21,.85) 300deg 312deg, transparent 312deg 330deg, rgba(250,204,21,.85) 330deg 342deg, transparent 342deg 360deg); animation: ace-spin 1.2s linear forwards; }
+.trump-ace-ring { position: absolute; inset: 20%; border: 4px solid #facc15; border-radius: 50%; box-shadow: 0 0 30px rgba(250,204,21,.9); animation: ace-ring 1.2s ease-out forwards; }
+.trump-ace-text { position: relative; font-weight: 900; font-size: 42px; color: #fef08a; text-shadow: 0 0 18px rgba(250,204,21,1), 0 2px 0 #92400e; letter-spacing: 2px; animation: ace-pop 1.2s ease-out forwards; }
+@keyframes ace-spin { from { transform: rotate(0deg); opacity: 1; } to { transform: rotate(180deg); opacity: 0; } }
+@keyframes ace-ring { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.8); opacity: 0; } }
+@keyframes ace-pop { 0% { transform: scale(.4); opacity: 0; } 20% { transform: scale(1.25); opacity: 1; } 70% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.1); opacity: 0; } }

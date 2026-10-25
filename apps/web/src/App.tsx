@@ -4,7 +4,7 @@ import { CardView } from "./components/CardView";
 import { TableCanvas } from "./components/TableCanvas";
 import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, cardLabel } from "../../../packages/game-core/src/engine";
 import { X, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, ArrowDownWideNarrow, } from "lucide-react";
-import { playDealSound, playCardSound, setSoundEnabled, setSoundVolume } from "./game/sound";
+import { playDealSound, playCardSound, playTrumpAceSound, setSoundEnabled, setSoundVolume } from "./game/sound";
 const ic = { size: 22, strokeWidth: 2 };
 
 export default function App() {
@@ -15,8 +15,15 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
   const [soundVol, setSoundVol] = useState(70);
-  const [sortOpen, setSortOpen] = useState(false);
+  const [lastSort, setLastSort] = useState<"suit" | "rank" | null>(null);
+  const [bubble, setBubble] = useState<{ text: string; key: number } | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Bong bóng chat trên avatar: hiện 6 giây rồi tự ẩn.
+  useEffect(() => {
+    if (!bubble) return;
+    const id = setTimeout(() => setBubble(null), 6000);
+    return () => clearTimeout(id);
+  }, [bubble]);
   // Toast thông báo: hiện ~3 giây rồi tự ẩn.
   useEffect(() => {
     if (!s.notice) return;
@@ -24,6 +31,12 @@ export default function App() {
     return () => clearTimeout(id);
   }, [s.noticeKey, s.notice, s]);
   const game = s.game;
+  // A chủ ra bàn: phát âm thanh dồn riêng, bất kể người đánh là mình hay bot.
+  useEffect(() => {
+    if (!s.flying || !game) return;
+    const c = parseCard(s.flying.cardId);
+    if (c.rank === 14 && c.suit === game.trumpSuit) playTrumpAceSound();
+  }, [s.flying, game]);
   const me = game?.players.find((p) => p.id === HUMAN_ID);
   const iAmDefender = game?.defenderId === HUMAN_ID;
   const iAmAttacker = game?.attackerId === HUMAN_ID;
@@ -332,6 +345,14 @@ export default function App() {
           <CardView card={parseCard(s.flying.cardId)} />
         </div>
       )}
+      {/* Hiệu ứng tấn công khi bất kỳ ai ra A chủ: tia vàng xoay + vòng sóng + chữ A CHỦ! */}
+      {s.flying && game && (() => { const c = parseCard(s.flying.cardId); return c.rank === 14 && c.suit === game.trumpSuit; })() && (
+        <div key={`ace-${s.flying.key}`} className="trump-ace-effect">
+          <div className="trump-ace-rays" />
+          <div className="trump-ace-ring" />
+          <span className="trump-ace-text">A CHỦ!</span>
+        </div>
+      )}
       {/* Đối thủ đối diện nhau, vòng tấn đi theo chiều kim đồng hồ khớp luật:
           Mình (dưới) -> Bot1 (trái) -> Bot2 (trên) -> Bot3 (phải) -> Mình.
           Người đỡ luôn là người ngồi kế tiếp sau người tấn theo vòng này. */}
@@ -379,19 +400,21 @@ export default function App() {
         );
       })()}
       <div className="text-center space-x-2 py-2 shrink-0 relative">
-        <button className="bg-white text-black font-semibold px-4 py-2 rounded-full" onClick={() => setSortOpen((v) => !v)}><span className="flex items-center gap-1"><ArrowDownWideNarrow size={16} /> Xếp bài</span></button>
-        {sortOpen && (
-          <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-50 bg-black/90 border border-yellow-400/60 rounded-xl p-2 text-sm flex flex-col gap-1">
-            <button className="bg-yellow-400 text-black font-bold px-4 py-2 rounded-full" onClick={() => { s.sortHand("suit"); setSortOpen(false); }}>Theo chất (cùng chất, A → 2)</button>
-            <button className="bg-yellow-400 text-black font-bold px-4 py-2 rounded-full" onClick={() => { s.sortHand("rank"); setSortOpen(false); }}>Theo hạng (cùng hạng, A → 2)</button>
-          </div>
-        )}
+        <button className="bg-white text-black font-semibold px-4 py-2 rounded-full" title="Bấm là tự xếp, bấm lại đổi kiểu" onClick={() => { const next = lastSort === "suit" ? "rank" : "suit"; s.sortHand(next); setLastSort(next); }}><span className="flex items-center gap-1"><ArrowDownWideNarrow size={16} /> Xếp bài{lastSort === "suit" ? " · theo chất" : lastSort === "rank" ? " · theo hạng" : ""}</span></button>
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmAttacker && allDefended)} onClick={s.finishAttackAction}>Kết thúc đợt</button>
         <button className="bg-red-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmDefender && game.table.length > 0)} onClick={s.takeCards}>Lên bài</button>
         <button className="bg-green-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(game.phase === "DRAWING" && game.pendingDraw[0] === HUMAN_ID && !s.drawing)} onClick={s.drawCards}>Bốc bài</button>
       </div>
       <div className="flex justify-center items-center flex-wrap shrink-0 px-2 pb-2 gap-2">
         <div className="relative shrink-0" style={iAmDefender && isDefending ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
+          {/* Bong bóng chat của mình: hiện trên avatar, không cần mở hội thoại. */}
+          {bubble && (
+            <div key={bubble.key} className="absolute bottom-full left-0 mb-2 z-50 max-w-[220px] bg-white text-black text-sm font-medium px-3 py-2 rounded-2xl rounded-bl-sm shadow-lg break-words">{bubble.text}</div>
+          )}
+          {/* Đồng hồ góc trên trái avatar khi đến lượt mình đánh/đỡ. */}
+          {((iAmDefender && isDefending) || myAttackTurn) && (
+            <span className="absolute -top-2 -left-2 z-50 bg-black/85 text-yellow-300 font-black text-xs px-2 py-1 rounded-full border border-yellow-400 flex items-center gap-1 shadow"><Timer size={13} /> {iAmDefender && isDefending ? defendSeconds : seconds}s</span>
+          )}
           <div className="tan-avatar" style={{ width: 100, height: 100, fontSize: 36 }}>{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>
           {iAmDefender && isDefending && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-400 text-black font-black text-[11px] px-1.5 rounded-full border border-white">{defendSeconds}s</span>}
         </div>
@@ -417,7 +440,7 @@ export default function App() {
               </div>
             ))}
           </div>
-          <form className="flex gap-2 p-2 border-t border-white/20" onSubmit={(e) => { e.preventDefault(); s.sendChat(chatText); setChatText(""); }}>
+          <form className="flex gap-2 p-2 border-t border-white/20" onSubmit={(e) => { e.preventDefault(); const msg = chatText.trim(); if (msg) { s.sendChat(msg); setBubble({ text: msg, key: Date.now() }); } setChatText(""); }}>
             <input className="flex-1 min-w-0 text-black px-3 py-2 rounded-full text-sm" placeholder="Nhắn trong ván này…" value={chatText} onChange={(e) => setChatText(e.target.value)} />
             <button className="bg-yellow-400 text-black font-bold px-4 rounded-full text-sm" type="submit">Gửi</button>
           </form>
