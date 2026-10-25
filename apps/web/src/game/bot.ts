@@ -1,4 +1,4 @@
-import { canAttackCard, canBeat, defend, attack, resolveFinishAttack, resolveTake, transfer, cardLabel, parseCard } from "../../../../packages/game-core/src/engine";
+import { canAttackCard, canBeat, defend, attack, resolveFinishAttack, resolveTake, cardLabel, parseCard } from "../../../../packages/game-core/src/engine";
 import type { Card, GameState, PlayerState } from "../../../../packages/game-core/src/engine";
 
 export function lowestCard(cards: Card[], trump: string): Card {
@@ -13,14 +13,6 @@ function allDefended(state: GameState) { return state.table.length > 0 && state.
 export function botDefendStep(state: GameState, bot: PlayerState): string {
   const pair = undefended(state)[0];
   if (!pair) return "";
-  if (state.allowTransfer && !state.table.some((x) => x.defense)) {
-    const t = bot.hand.find((c) => c.rank === pair.attack.rank);
-    const next = state.players[(state.players.findIndex((p) => p.id === bot.id) + 1) % state.players.length];
-    if (t && !bot.hand.some((c) => canBeat(pair.attack, c, state.trumpSuit)) && next && next.hand.length >= state.table.length + 1 && next.id !== "player_0") {
-      transfer(state, bot.id, t.id);
-      return `${bot.name} chuyển tấn bằng ${cardLabel(t)}.`;
-    }
-  }
   const beating = bot.hand.filter((c) => canBeat(pair.attack, c, state.trumpSuit));
   if (!beating.length) { resolveTake(state, bot.id); return `${bot.name} không đỡ được, lên bài, nhận cả bàn.`; }
   const card = lowestCard(beating, state.trumpSuit);

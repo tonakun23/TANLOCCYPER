@@ -82,7 +82,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   goToCreate: (isPrivate) => set({ screen: "create", createPrivate: isPrivate }),
   setRoomCode: (code) => set({ roomCode: code }),
   startGame: () => {
-    const { playerName, playerCount, allowTransfer } = get();
+    const { playerName, playerCount } = get(); const allowTransfer = false; // Tony bo chuc nang chuyen tan
     const names = [playerName.trim() || "Bạn"];
     for (let i = 1; i < playerCount; i++) names.push(`Bot ${i}`);
     const game = createGame({ playerCount, playerNames: names, allowTransfer });

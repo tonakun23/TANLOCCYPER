@@ -278,7 +278,7 @@ export default function App() {
               <option value={2}>2 người</option><option value={3}>3 người</option><option value={4}>4 người</option>
             </select>
           </label>
-          <label><input type="checkbox" checked={s.allowTransfer} onChange={(e) => s.setAllowTransfer(e.target.checked)} /> Cho phép chuyển tấn</label>
+         
         </div>
         {homeBottom}
       </div>
@@ -287,12 +287,12 @@ export default function App() {
 
   let hint = "Đang chờ bot đánh…";
   if (game.phase === "FINISHED") hint = game.loserId === HUMAN_ID ? "Bạn là người thua ván này." : `${game.players.find((p) => p.id === game.loserId)?.name} thua ván này.`;
-  else if (iAmDefender && undefended.length) hint = "Tới lượt bạn đỡ: bấm lá bài để đỡ, hoặc bấm Lên bài bất cứ lúc nào (kể cả khi đỡ được) / Chuyển tấn.";
+  else if (iAmDefender && undefended.length) hint = "Tới lượt bạn đỡ: bấm lá bài để đỡ, hoặc bấm Lên bài bất cứ lúc nào (kể cả khi đỡ được).";
   else if (game.phase === "DRAWING" && game.pendingDraw[0] === HUMAN_ID) hint = "Tới lượt bạn bốc bài: bấm Bốc bài để bốc từng lá cho đủ 8 lá.";
   else if (game.phase === "DRAWING") hint = "Đang bốc bài: chờ người khác bốc đủ 8 lá…";
   else if (iAmAttacker && game.table.length === 0) hint = "Tới lượt bạn tấn: bấm 1 lá bài để đánh ra.";
   else if (iAmAttacker && allDefended) hint = "Bạn có thể thêm bài cùng hạng, hoặc bấm Kết thúc đợt.";
-  else if (!iAmDefender && game.table.length > 0) hint = "Bạn có thể thêm bài cùng hạng, hoặc bấm Không thêm nữa.";
+  else if (!iAmDefender && game.table.length > 0) hint = "Bạn có thể thêm bài cùng hạng.";
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-[#1b3a1b] text-white flex flex-col relative">
@@ -372,9 +372,6 @@ export default function App() {
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmAttacker && allDefended)} onClick={s.finishAttackAction}>Kết thúc đợt</button>
         <button className="bg-red-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmDefender && game.table.length > 0)} onClick={s.takeCards}>Lên bài</button>
         <button className="bg-green-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(game.phase === "DRAWING" && game.pendingDraw[0] === HUMAN_ID && !s.drawing)} onClick={s.drawCards}>Bốc bài</button>
-        <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmDefender && s.selected && game.table.length > 0 && !game.table.some((x) => x.defense) && game.table.some((x) => x.attack.rank === parseCard(s.selected as string).rank))} onClick={s.transferCard}>Chuyển tấn</button>
-        <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(game.table.length > 0 && !iAmDefender)} onClick={s.passAdd}>Không thêm nữa</button>
-        <button className="bg-yellow-400 text-black font-semibold px-4 py-2 rounded-full" onClick={s.backToLobby}>Ván mới</button>
       </div>
       <div className="flex justify-center items-center flex-wrap shrink-0 px-2 pb-2 gap-2">
         <div className="relative shrink-0" style={iAmDefender && isDefending ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
@@ -417,7 +414,7 @@ export default function App() {
             <h2 className="text-xl font-bold">Kết quả</h2>
             <p>Người thua: <b>{game.players.find((p) => p.id === game.loserId)?.name}</b></p>
             <p>Thứ tự hoàn thành: {game.finishOrder.map((id) => game.players.find((p) => p.id === id)?.name).join(" → ") || "—"}</p>
-            <button className="bg-yellow-400 text-black font-bold px-6 py-3 rounded-full mt-3" onClick={s.backToLobby}>Chơi ván mới</button>
+            <button className="bg-yellow-400 text-black font-bold px-6 py-3 rounded-full mt-3" onClick={s.backToLobby}>Về sảnh</button>
           </div>
         </div>
       )}
