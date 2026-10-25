@@ -1,0 +1,26 @@
+# Dev only. Postgres + Redis chạy trong mạng Docker riêng, không public ra Internet ở prod.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: tan_online
+      POSTGRES_USER: tan
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tan -d tan_online"]
+      interval: 10s
+      retries: 5
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+volumes:
+  postgres_data:
+  redis_data:

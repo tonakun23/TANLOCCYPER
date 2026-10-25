@@ -1,4 +1,4 @@
-import { createGame, attack, defend, take, finishAttack, transfer, canAttackCard, canBeat, parseCard, cardLabel, SUIT_SYMBOL, SUIT_NAME } from "../../packages/game-core/src/engine.js";
+import { createGame, attack, defend, take, finishAttack, transfer, canAttackCard, canBeat, parseCard, cardLabel, SUIT_SYMBOL, SUIT_NAME } from "../../packages/game-core/dist/engine.js";
 
 const $ = (id) => document.getElementById(id);
 let game = null, humanId = "player_0", selected = null, humanAddPassed = false, timerLeft = 30, timerHandle = null, busy = false;

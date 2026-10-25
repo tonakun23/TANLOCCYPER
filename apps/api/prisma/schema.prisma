@@ -1,0 +1,84 @@
+// Prisma schema — MVP, Sprint 3 mới áp dụng thật lên Postgres.
+// Game state đang chơi KHÔNG lưu ở đây, chỉ lưu dữ liệu bền.
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+model User {
+  id          String   @id @default(uuid())
+  nickname    String
+  avatarUrl   String?
+  isGuest     Boolean  @default(false)
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  sessions    AuthSession[]
+  roomMembers RoomMember[]
+  matchPlayers MatchPlayer[]
+}
+model AuthSession {
+  id               String   @id @default(uuid())
+  userId           String
+  refreshTokenHash String
+  expiresAt        DateTime
+  user             User     @relation(fields: [userId], references: [id])
+  @@index([userId])
+}
+model GameRoom {
+  id         String   @id @default(uuid())
+  code       String
+  hostId     String
+  maxPlayers Int
+  visibility String   // PUBLIC | PRIVATE
+  status     String   // WAITING | PLAYING | FINISHED
+  ruleSet    String   @default("VN_8_V1")
+  createdAt  DateTime @default(now())
+  members    RoomMember[]
+  matches    GameMatch[]
+  @@index([code])
+}
+model RoomMember {
+  roomId   String
+  userId   String
+  seat     Int
+  joinedAt DateTime @default(now())
+  leftAt   DateTime?
+  room     GameRoom @relation(fields: [roomId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+  @@id([roomId, userId])
+  @@unique([roomId, seat])
+}
+model GameMatch {
+  id          String   @id @default(uuid())
+  roomId      String
+  ruleVersion String   @default("VN_8_V1")
+  status      String
+  startedAt   DateTime?
+  endedAt     DateTime?
+  room        GameRoom @relation(fields: [roomId], references: [id])
+  players     MatchPlayer[]
+  events      MatchEvent[]
+}
+model MatchPlayer {
+  matchId     String
+  userId      String
+  seat        Int
+  finishOrder Int?
+  isLoser     Boolean  @default(false)
+  match       GameMatch @relation(fields: [matchId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+  @@id([matchId, userId])
+}
+model MatchEvent {
+  id         String   @id @default(uuid())
+  matchId    String
+  sequence   Int
+  actorId    String
+  actionType String
+  payload    Json
+  createdAt  DateTime @default(now())
+  match      GameMatch @relation(fields: [matchId], references: [id])
+  @@unique([matchId, sequence])
+}

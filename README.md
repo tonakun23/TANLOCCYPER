@@ -12,6 +12,12 @@ chơi trên Web / Mobile Browser, không cần cài đặt.
 Bản này chơi **offline với bot** để kiểm luật trước khi làm server online.
 Đó là Sprint 1 + bàn chơi thử, chưa phải phòng online nhiều người thật.
 
+**Sprint 1 đợt 2 (25/10/2026):** game-core đã chuyển sang TypeScript strict
+(`packages/game-core/src/*.ts`, `tsc` pass, `dist/` đã build), thêm server
+adapter (`server.ts`: actionId idempotency, expectedVersion, VAL-02/03/09/10)
+và test mở rộng 10/10 pass. Bàn chơi vanilla nay import `dist/engine.js`.
+Colyseus/NestJS/React/PixiJS vẫn CHƯA làm — xem docs/sprint-backlog.md.
+
 ```bash
 cd TANLOCCYPER
 python3 -m http.server 8000
