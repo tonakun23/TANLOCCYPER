@@ -36,7 +36,7 @@ interface GameStore {
   drawCards: () => Promise<void>; runDrawPhase: () => Promise<void>; sortHand: (mode: "suit" | "rank") => void;
   runBots: () => Promise<void>; addLog: (msg: string) => void;
   sendChat: (text: string) => void; clearNotice: () => void;
-  autoLowestAttack: () => void; passAttack: () => void;
+  autoLowestAttack: () => void; passAttack: () => void; followWindow: { mode: "take" | "add"; takerId?: string; key: number } | null; resolveTakeFollow: () => void; passFollow: () => void;
 }
 
 // Lá mới xuất hiện trên bàn sau một nước đi (so với trước nước đi).
@@ -104,7 +104,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         game.defenderInitialHandCount = di.hand.length;
       }
     }
-    set({ screen: "game", game: cloneGame(game), selected: null, humanAddPassed: false, chat: [{ id: Date.now(), from: "Hệ thống", text: "Chat trong ván này thôi, thoát ván là mất, không lưu lại." }], notice: `Ván mới: chất chủ ${game.trumpSuit}, ${game.players.find((p) => p.id === game.attackerId)?.name} tấn đầu.`, noticeKey: Date.now() });
+    set({ screen: "game", game: cloneGame(game), selected: null, humanAddPassed: false, followWindow: null, chat: [{ id: Date.now(), from: "Hệ thống", text: "Chat trong ván này thôi, thoát ván là mất, không lưu lại." }], notice: `Ván mới: chất chủ ${game.trumpSuit}, ${game.players.find((p) => p.id === game.attackerId)?.name} tấn đầu.`, noticeKey: Date.now() });
     playDealSound();
     void get().runBots();
   },
@@ -120,6 +120,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   sortHand: () => {},
   autoLowestAttack: () => {},
   passAttack: () => {},
+  followWindow: null, resolveTakeFollow: () => {}, passFollow: () => {},
 }));
 
 // Gán các action sau khi store tạo xong để tránh vòng tham chiếu trong create().
@@ -143,7 +144,7 @@ store.setState({
     const card = me.hand.find((c) => c.id === cardId);
     if (card && canAttackCard(game, HUMAN_ID, card)) {
       const before = tableIds(game);
-      try { attack(game, HUMAN_ID, cardId); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), selected: null, humanAddPassed: false, flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); playCardSound(); store.getState().addLog(`Bạn đánh ${cardLabel(card)}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
+      try { attack(game, HUMAN_ID, cardId); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), selected: null, humanAddPassed: false, followWindow: null, flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); playCardSound(); store.getState().addLog(`Bạn đánh ${cardLabel(card)}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
     } else { store.setState({ selected: cardId }); }
     void selected;
   },
@@ -225,7 +226,14 @@ store.setState({
   autoLowestAttack: () => {
     const { game } = store.getState(); if (!game) return;
     const me = game.players.find((p) => p.id === HUMAN_ID); if (!me || !me.hand.length) return;
-    const card = lowestCard(me.hand, game.trumpSuit);
+    // Hết giờ tấn: tự đánh lá yếu nhất có thể đánh được. Bàn trống thì lá yếu nhất tay;
+    // đã tấn + đỡ hết thì lá yếu nhất trong các lá thêm được cùng hạng; không thêm được thì kết thúc đợt.
+    let card = lowestCard(me.hand, game.trumpSuit);
+    if (game.table.length > 0) {
+      const addable = me.hand.filter((c) => canAttackCard(game, HUMAN_ID, c));
+      if (!addable.length) { store.getState().finishAttackAction(); return; }
+      card = lowestCard(addable, game.trumpSuit);
+    }
     const before = tableIds(game);
     try { attack(game, HUMAN_ID, card.id); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); store.getState().addLog(`Hết giờ: tự đánh ${cardLabel(card)}.`); void store.getState().runBots(); } catch { /* bỏ qua */ }
   },
@@ -243,6 +251,20 @@ store.setState({
     game.version++;
     store.setState({ game: cloneGame(game) });
     store.getState().addLog(`Hết giờ tấn: hết lượt tấn, chuyển lượt tấn cho ${next.name}.`);
+    void store.getState().runBots();
+  },
+  resolveTakeFollow: () => {
+    const { game, followWindow } = store.getState(); if (!game || !followWindow || followWindow.mode !== "take" || !followWindow.takerId) return;
+    const taker = game.players.find((pl) => pl.id === followWindow.takerId); if (!taker) return;
+    try { resolveTake(game, followWindow.takerId); } catch { return; }
+    store.setState({ game: cloneGame(game), followWindow: null });
+    store.getState().addLog(`${taker.name} lên bài, nhận cả bàn.`);
+    void store.getState().runDrawPhase();
+  },
+  passFollow: () => {
+    const { followWindow } = store.getState(); if (!followWindow) return;
+    if (followWindow.mode === "take") { store.getState().resolveTakeFollow(); return; }
+    store.setState({ followWindow: null, humanAddPassed: true });
     void store.getState().runBots();
   },
   runBots: async () => {
@@ -263,6 +285,21 @@ store.setState({
         const applyBot = (actorId: string, fn: () => string | null) => {
           const before = tableIds(g);
           const msg = fn();
+          if (msg && msg.startsWith("TAKE:")) {
+            const takerId = msg.split(":")[1];
+            const taker = g.players.find((pl) => pl.id === takerId);
+            const human = g.players.find((pl) => pl.id === HUMAN_ID);
+            const humanCanAdd = human && !human.finished && human.hand.some((c) => canAttackCard(g, HUMAN_ID, c));
+            if (humanCanAdd) {
+              store.setState({ followWindow: { mode: "take", takerId, key: Date.now() } });
+              store.getState().addLog(`${taker?.name || "Bot"} lên bài - bạn có 5s để theo!`);
+            } else {
+              try { resolveTake(g, takerId); } catch { /* bỏ qua */ }
+              store.setState({ game: cloneGame(g) });
+              store.getState().addLog(`${taker?.name || "Bot"} không đỡ được, lên bài, nhận cả bàn.`);
+            }
+            return;
+          }
           const played = newTableCard(before, g);
           if (played) playCardSound();
           store.setState({ game: cloneGame(g), humanAddPassed: false, flying: played ? { cardId: played, by: actorId, key: Date.now() } : undefined });
@@ -270,12 +307,18 @@ store.setState({
         };
         const undefended = g.table.filter((x) => !x.defense);
         if (g.table.length > 0 && undefended.length > 0) {
-          if (defender.id !== HUMAN_ID) { applyBot(defender.id, () => botDefendStep(g, defender)); continue; }
+          if (defender.id !== HUMAN_ID) { applyBot(defender.id, () => botDefendStep(g, defender)); if (store.getState().followWindow) break; continue; }
           break;
         }
         if (g.table.length === 0) {
           if (attacker.id !== HUMAN_ID && !attacker.finished) { applyBot(attacker.id, () => botAttackStep(g, attacker)); continue; }
           break;
+        }
+        // Bot tấn sắp thêm/kết thúc mà mình còn lá theo được: dừng lại, mở cửa sổ theo 5s cho mình, đừng kết thúc lượt vội.
+        {
+          const human = g.players.find((pl) => pl.id === HUMAN_ID);
+          const humanCanAdd = human && !human.finished && g.table.length > 0 && g.table.every((x) => x.defense) && human.hand.some((c) => canAttackCard(g, HUMAN_ID, c));
+          if (attacker.id !== HUMAN_ID && humanCanAdd && !store.getState().humanAddPassed && !store.getState().followWindow) { store.setState({ followWindow: { mode: "add", key: Date.now() } }); break; }
         }
         if (attacker.id !== HUMAN_ID) { applyBot(attacker.id, () => botAttackStep(g, attacker)); continue; }
         if (attacker.id === HUMAN_ID) break;

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useGameStore, HUMAN_ID } from "./store";
 import { CardView } from "./components/CardView";
 import { TableCanvas } from "./components/TableCanvas";
-import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, cardLabel } from "../../../packages/game-core/src/engine";
+import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, canAttackCard, cardLabel } from "../../../packages/game-core/src/engine";
 import { X, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, ArrowDownWideNarrow, } from "lucide-react";
 import { playDealSound, playCardSound, playTrumpAceSound, setSoundEnabled, setSoundVolume } from "./game/sound";
 const ic = { size: 22, strokeWidth: 2 };
@@ -18,6 +18,8 @@ export default function App() {
   const [lastSort, setLastSort] = useState<"suit" | "rank" | null>(null);
   const [bubble, setBubble] = useState<{ text: string; key: number } | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [followSeconds, setFollowSeconds] = useState(5);
   // Bong bóng chat trên avatar: hiện 6 giây rồi tự ẩn.
   useEffect(() => {
     if (!bubble) return;
@@ -74,7 +76,7 @@ export default function App() {
     if (!myAttackTurn) { setSeconds(30); return; }
     const id = setInterval(() => setSeconds((v) => {
       if (v <= 1) {
-        if (game) { if (game.table.length === 0) s.passAttack(); else if (allDefended) s.finishAttackAction(); }
+        if (game) s.autoLowestAttack();
         return 30;
       }
       return v - 1;
@@ -82,6 +84,19 @@ export default function App() {
     return () => clearInterval(id);
   }, [myAttackTurn, game, allDefended, s]);
 
+  // Cửa sổ theo 5s: đếm ngược, hết giờ thì theo đúng chế độ (lên bài -> lên thật, thêm bài -> bỏ qua theo).
+  const followKey = s.followWindow?.key;
+  useEffect(() => {
+    if (!followKey) return;
+    setFollowSeconds(5);
+    const id = setInterval(() => setFollowSeconds((v) => {
+      if (v <= 1) { useGameStore.getState().passFollow(); return 5; }
+      return v - 1;
+    }), 1000);
+    return () => clearInterval(id);
+    // Chỉ reset khi cửa sổ theo mới mở (key mới), không reset khi store đổi khác (notice, v.v.).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [followKey]);
   const trumpMarker: Record<string, string> = { S: "spades", C: "clubs", H: "hearts", D: "diamonds" };
   // Phòng Tấn theo từng hạng — chỉ là điểm thưởng trong game, KHÔNG tiền thật.
   const [tier, setTier] = useState("tap-su");
@@ -186,7 +201,7 @@ export default function App() {
   if (s.screen === "create") {
     const pct = BET_LEVELS.length > 1 ? (betIdx / (BET_LEVELS.length - 1)) * 100 : 0;
     return (
-      <div className="tan-home h-full w-full overflow-hidden text-white flex flex-col">
+      <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
         <div className="tan-rooms-top">
           <h1 style={{ margin: "0 auto", fontSize: "clamp(20px, 5vh, 34px)", letterSpacing: 1, color: "#fef3c7" }}>TẠO PHÒNG CHƠI</h1>
           <button className="tan-icon" onClick={s.backToLobby} aria-label="Đóng"><X size={22} /></button>
@@ -229,7 +244,7 @@ export default function App() {
   }
   if (s.screen === "rooms") {
     return (
-      <div className="tan-home h-full w-full overflow-hidden text-white flex flex-col">
+      <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
         <div className="tan-rooms-top">
           <div style={{ margin: "0 auto", display: "flex", gap: 12 }}>
             <button className="tan-pill orange">CHƠI NGAY</button>
@@ -268,7 +283,7 @@ export default function App() {
   }
   if (s.screen === "lobby" || !game) {
     return (
-      <div className="tan-home h-full w-full overflow-hidden text-white flex flex-col">
+      <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
         {homeTop}
         <div className="tan-center">
           <button className="tan-play" onClick={s.goToRooms}>
@@ -303,7 +318,7 @@ export default function App() {
               <p className="mt-2"><b>Chia bài:</b> 2–4 người, mỗi người 8 lá, bộ Tây 52 lá không Joker. Lá cuối nọc lật ngửa làm chất chủ (ví dụ Cơ là chủ thì Cơ mạnh nhất).</p>
               <p className="mt-2"><b>Người tấn đầu:</b> người có lá chủ nhỏ nhất. Sau đó tấn theo vòng ngược chiều kim đồng hồ: Mình → Bot 3 (phải) → Bot 1 (trên) → Bot 2 (trái) → Mình; người vừa đỡ xong sẽ tấn tiếp, người ngồi kế tiếp sau người tấn là người đỡ.</p>
               <p className="mt-2"><b>Tấn:</b> tấn 1 lá đầu, sau đó chỉ được thêm lá cùng hạng với lá đã có trên bàn. Một đợt tối đa 6 lá, và không vượt số lá người đỡ có lúc đợt bắt đầu.</p>
-              <p className="mt-2"><b>Đỡ:</b> đỡ bằng lá cùng chất cao hơn, hoặc bằng lá chủ nếu lá tấn không phải chủ. Lá tấn là chủ thì chỉ đỡ bằng lá chủ cao hơn. Người đỡ có 30 giây, quanh avatar có vòng sáng đếm ngược, hết giờ tự lên bài.</p><p className="mt-2"><b>Tấn cũng tính giờ:</b> người tấn có 30 giây, tấn lá mới thì reset lại 30 giây. Hết giờ tấn thì hết lượt tấn: chưa tấn lá nào thì chuyển lượt tấn cho người khác, đã tấn và đỡ hết thì tự kết thúc đợt.</p>
+              <p className="mt-2"><b>Đỡ:</b> đỡ bằng lá cùng chất cao hơn, hoặc bằng lá chủ nếu lá tấn không phải chủ. Lá tấn là chủ thì chỉ đỡ bằng lá chủ cao hơn. Người đỡ có 30 giây, quanh avatar có vòng sáng đếm ngược, hết giờ tự lên bài.</p><p className="mt-2"><b>Tấn cũng tính giờ:</b> người tấn có 30 giây, quanh avatar có vòng vàng đếm ngược, tấn lá mới thì reset lại 30 giây. Hết giờ tấn mà chưa đánh thì tự đánh lá yếu nhất có thể đánh được.</p>
               <p className="mt-2"><b>Lên bài:</b> không đỡ được (hoặc muốn lên) thì bấm Lên bài, nhận hết bài trên bàn, mất lượt tấn tiếp theo.</p>
               <p className="mt-2"><b>Bốc bài:</b> đỡ thành công và kết thúc đợt thì mọi người bốc từng lá cho đủ 8 lá, theo thứ tự người tấn, người thêm, người đỡ cuối. Hết nọc thì ai hết bài trước là xong, người còn bài cuối cùng thua.</p>
               <p className="mt-2"><b>Nút trong ván:</b> Kết thúc đợt (người tấn chính, khi mọi lá đã được đỡ), Lên bài, Bốc bài (khi tới lượt bốc), Xếp bài (theo chất hoặc theo hạng, từ A xuống 2).</p>
@@ -326,10 +341,10 @@ export default function App() {
   else if (!iAmDefender && game.table.length > 0) hint = "Bạn có thể thêm bài cùng hạng.";
 
   return (
-    <div className="h-full w-full overflow-hidden bg-[#1b3a1b] text-white flex flex-col relative">
+    <div className="h-screen w-screen overflow-hidden bg-[#1b3a1b] text-white flex flex-col relative">
       <div className="flex gap-3 bg-black/50 px-3 py-2 font-semibold items-center justify-between shrink-0">
         <span className="flex items-center gap-3">
-          <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 flex items-center justify-center" title="Về sảnh" onClick={s.backToLobby}><X size={18} /></button>
+          <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 flex items-center justify-center" title="Rời khỏi ván đấu" onClick={() => setLeaveOpen(true)}><X size={18} /></button>
           <span>{game.phase === "FINISHED" ? "Ván đã kết thúc" : `${game.players.find((p) => p.id === game.attackerId)?.name} tấn · ${game.players.find((p) => p.id === game.defenderId)?.name} đỡ`}</span>
           {isDefending ? <span className="flex items-center gap-1"><Timer size={18} /> Đỡ: {defendSeconds}s</span> : myAttackTurn ? <span className="flex items-center gap-1"><Timer size={18} /> {seconds}s</span> : null}
           <span className="flex items-center gap-1">Chủ: {SUIT_NAME[game.trumpSuit]} <img src={`/durak/ui/trump_marker_${trumpMarker[game.trumpSuit]}.png`} alt={SUIT_NAME[game.trumpSuit]} className="w-6 h-6" /></span>
@@ -364,7 +379,7 @@ export default function App() {
       {/* Đối thủ đối diện nhau, vòng tấn đi NGƯỢC chiều kim đồng hồ:
           Mình (dưới) -> Bot3 (phải) -> Bot1 (trên) -> Bot2 (trái) -> Mình.
           Người đỡ luôn là người ngồi kế tiếp sau người tấn theo vòng này. */}
-      <div className="w-full relative flex flex-col" style={{ height: 660, flexShrink: 0 }}>
+      <div className="flex-1 min-h-0 w-full relative flex flex-col">
         <TableCanvas game={game} />
         {game.players.filter((p) => p.id !== HUMAN_ID).map((p, idx) => {
           const pos = p.name === "Bot 3" ? "absolute right-2 top-1/2 -translate-y-1/2" : p.name === "Bot 2" ? "absolute left-2 top-1/2 -translate-y-1/2" : "absolute top-2 left-1/2 -translate-x-1/2";
@@ -393,6 +408,8 @@ export default function App() {
           );
         })()}
       </div>
+      {/* Nút + tay bài + gợi ý nằm tuyệt đối ở đáy màn hình, đè lên viền dưới bàn: viền dưới bàn (đáy khung - 80px) nằm đúng giữa lá bài tay mình. */}
+      <div className="absolute bottom-0 left-0 right-0 z-20">
       {/* Khi 1 lá đỡ được nhiều lá tấn: hiện nút chọn lá tấn để đỡ (bàn vẽ bằng canvas nên không bấm trực tiếp được). */}
       {iAmDefender && s.selected && (() => {
         const sel = parseCard(s.selected as string);
@@ -407,15 +424,15 @@ export default function App() {
           </div>
         );
       })()}
-      {/* Kéo nút + tay bài lên 190px: viền dưới bàn (660px, đáy ở 610px) nằm đúng giữa lá bài tay mình (tay từ 560-660, giữa 610). */}
-      <div className="text-center space-x-2 py-2 shrink-0 relative" style={{ marginTop: -190 }}>
+      <div className="text-center space-x-2 py-2 shrink-0 relative">
+        {s.followWindow && <button className="bg-yellow-400 text-black font-bold px-4 py-2 rounded-full" onClick={() => s.passFollow()}>Không theo</button>}
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full" title="Bấm là tự xếp, bấm lại đổi kiểu" onClick={() => { const next = lastSort === "suit" ? "rank" : "suit"; s.sortHand(next); setLastSort(next); }}><span className="flex items-center gap-1"><ArrowDownWideNarrow size={16} /> Xếp bài</span></button>
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmAttacker && allDefended)} onClick={s.finishAttackAction}>Kết thúc đợt</button>
         <button className="bg-red-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmDefender && game.table.length > 0)} onClick={s.takeCards}>Lên bài</button>
         <button className="bg-green-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(game.phase === "DRAWING" && game.pendingDraw[0] === HUMAN_ID && !s.drawing)} onClick={s.drawCards}>Bốc bài</button>
       </div>
       <div className="flex justify-center items-center flex-wrap shrink-0 px-2 pb-2 gap-2">
-        <div className="relative shrink-0" style={iAmDefender && isDefending ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
+        <div className="relative shrink-0" style={(iAmDefender && isDefending) ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : myAttackTurn ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${(seconds / 30) * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
           {/* Bong bóng chat của mình: hiện trên avatar, không cần mở hội thoại. */}
           {bubble && (
             <div key={bubble.key} className="absolute bottom-full left-0 mb-2 z-50 max-w-[220px] bg-white text-black text-sm font-medium px-3 py-2 rounded-2xl rounded-bl-sm shadow-lg break-words">{bubble.text}</div>
@@ -424,24 +441,28 @@ export default function App() {
           {((iAmDefender && isDefending) || myAttackTurn) && (
             <span className="absolute -top-2 -left-2 z-50 bg-black/85 text-yellow-300 font-black text-xs px-2 py-1 rounded-full border border-yellow-400 flex items-center gap-1 shadow"><Timer size={13} /> {iAmDefender && isDefending ? defendSeconds : seconds}s</span>
           )}
+          {s.followWindow && (
+            <span className="absolute -top-8 left-1/2 -translate-x-1/2 z-50 bg-yellow-400 text-black font-black text-xs px-3 py-1 rounded-full border-2 border-white shadow whitespace-nowrap">Theo: {followSeconds}s</span>
+          )}
           <div className="tan-avatar" style={{ width: 100, height: 100, fontSize: 36 }}>{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>
           {iAmDefender && isDefending && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-400 text-black font-black text-[11px] px-1.5 rounded-full border border-white">{defendSeconds}s</span>}
         </div>
         {me?.hand.map((c, i) => (
           <div key={c.id} className={i === 0 ? "" : "-ml-6"}>
-            <CardView card={c} selected={s.selected === c.id} onClick={() => s.playCard(c.id)} />
+            <CardView card={c} selected={s.selected === c.id} highlight={!!game && game.defenderId !== HUMAN_ID && game.table.length > 0 && canAttackCard(game, HUMAN_ID, c)} onClick={() => s.playCard(c.id)} />
           </div>
         ))}
       </div>
       <p className="text-center text-yellow-200 text-sm pb-2 shrink-0">{hint}</p>
+      </div>
       {/* Chat trong ván: chỉ ở bộ nhớ, thoát ván là mất, không lưu DB. */}
       {chatOpen && (
-        <div className="absolute bottom-2 right-2 z-50 w-80 max-w-[92vw] bg-black/90 border border-yellow-400/60 rounded-2xl overflow-hidden shadow-2xl">
+        <div className="absolute inset-0 z-50 bg-black/95 border border-yellow-400/60 overflow-hidden shadow-2xl flex flex-col">
           <div className="flex justify-between items-center px-3 py-2 bg-red-950 font-semibold text-sm">
             <span className="flex items-center gap-1"><MessageCircle size={16} /> Chat trong ván</span>
             <button onClick={() => setChatOpen(false)} aria-label="Đóng chat"><X size={18} /></button>
           </div>
-          <div className="h-56 overflow-auto p-3 space-y-2 text-sm">
+          <div className="flex-1 overflow-auto p-4 space-y-3 text-base">
             {s.chat.map((m) => (
               <div key={m.id} className={m.from === (s.playerName.trim() || "Bạn") ? "text-right" : ""}>
                 <span className="text-yellow-300 text-xs font-semibold">{m.from}: </span>
@@ -449,11 +470,23 @@ export default function App() {
               </div>
             ))}
           </div>
-          <form className="flex gap-2 p-2 border-t border-white/20" onSubmit={(e) => { e.preventDefault(); const msg = chatText.trim(); if (msg) { s.sendChat(msg); setBubble({ text: msg, key: Date.now() }); } setChatText(""); }}>
+          <form className="flex gap-2 p-4 border-t border-white/20" onSubmit={(e) => { e.preventDefault(); const msg = chatText.trim(); if (msg) { s.sendChat(msg); setBubble({ text: msg, key: Date.now() }); } setChatText(""); }}>
             <input className="flex-1 min-w-0 text-black px-3 py-2 rounded-full text-sm" placeholder="Nhắn trong ván này…" value={chatText} onChange={(e) => setChatText(e.target.value)} />
             <button className="bg-yellow-400 text-black font-bold px-4 rounded-full text-sm" type="submit">Gửi</button>
           </form>
           <p className="text-center text-white/50 text-xs pb-2">Thoát ván là mất chat, không lưu lại.</p>
+        </div>
+      )}
+      {leaveOpen && (
+        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-80 max-w-[92vw] bg-red-900 border border-yellow-400 rounded-2xl p-5 text-center">
+            <h2 className="font-bold text-lg mb-2">Bạn có muốn rời khỏi ván đấu?</h2>
+            <p className="text-white/70 text-sm mb-4">Rời ván sẽ mất ván đang chơi, quay về sảnh.</p>
+            <div className="flex gap-3 justify-center">
+              <button className="bg-red-500 text-white font-bold px-6 py-2 rounded-full" onClick={() => { setLeaveOpen(false); s.backToLobby(); }}>Xác nhận</button>
+              <button className="bg-white text-black font-bold px-6 py-2 rounded-full" onClick={() => setLeaveOpen(false)}>Hủy</button>
+            </div>
+          </div>
         </div>
       )}
       {settingsOpen && (

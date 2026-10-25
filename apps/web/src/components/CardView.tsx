@@ -11,13 +11,13 @@ function fileName(rank: number, suit: string): string {
   return `${r}${suit}.png`;
 }
 
-export function CardView({ card, selected, onClick }: { card: Card | string; selected?: boolean; onClick?: () => void }) {
+export function CardView({ card, selected, highlight, onClick }: { card: Card | string; selected?: boolean; highlight?: boolean; onClick?: () => void }) {
   const c = typeof card === "string" ? parseCard(card) : card;
   const rank = RANK_LABEL[c.rank] || c.rank;
   const sym = SUIT_SYMBOL[c.suit];
   const file = fileName(c.rank, c.suit);
   return (
-    <div className={`card card-img ${selected ? "selected" : ""}`} onClick={onClick} title={`${rank}${sym}`}>
+    <div className={`card card-img ${selected ? "selected" : ""} ${highlight ? "addable" : ""}`} onClick={onClick} title={`${rank}${sym}`}>
       <img src={`/durak/cards/${file}`} alt={`${rank}${sym}`} draggable={false} />
     </div>
   );

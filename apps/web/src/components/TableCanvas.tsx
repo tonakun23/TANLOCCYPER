@@ -65,10 +65,11 @@ function drawCard(container: PIXI.Container, x: number, y: number, card: Card | 
 function drawTable(app: PIXI.Application, game: GameState, textures?: Map<string, PIXI.Texture>) {
   app.stage.removeChildren();
   const w = app.screen.width, h = app.screen.height;
-  const cx = w / 2, cy = h / 2;
-  // Bàn mở rộng ra cho đầy khung (trước oval còn nhiều chỗ trống).
-  // Vòng bàn mở rộng ra ngoài + cao hơn, để viền dưới bàn chạm đúng giữa lá bài của mình (tay mình đè lên viền bàn, nửa trong nửa ngoài).
-  const rx = Math.min(620, w * 0.49), ry = Math.min(230, h * 0.48);
+  // Responsive full màn hình: bàn tự giãn theo khung chứa, không còn khung cố định.
+  // Tâm bàn lệch xuống 20px, bán kính dọc = h/2 - 100, nên viền trên cách đầu bàn 120px
+  // (không đè bot trên) và viền dưới nằm đúng giữa lá bài tay mình (tay ở cuối màn hình, giữa tay cách đáy 80px).
+  const cx = w / 2, cy = h / 2 + 20;
+  const rx = Math.min(620, w * 0.49), ry = Math.max(60, h / 2 - 100);
   // Bàn hình chữ nhật bo tròn 2 đầu (capsule): cạnh trên/dưới thẳng,
   // 2 đầu là nửa hình tròn, không còn oval tròn như trước.
   const table = new PIXI.Graphics();

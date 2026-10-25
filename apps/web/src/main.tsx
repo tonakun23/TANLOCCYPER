@@ -1,10 +1,10 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
-import ScaleStage from "./components/ScaleStage";
+import RotateGate from "./components/RotateGate";
 import "./styles.css";
 
-createRoot(document.getElementById("root") as HTMLElement).render(<ScaleStage><App /></ScaleStage>);
+createRoot(document.getElementById("root") as HTMLElement).render(<RotateGate><App /></RotateGate>);
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

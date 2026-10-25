@@ -108,3 +108,6 @@ body { background: #1b3a1b; margin: 0; }
 @keyframes ace-spin { from { transform: rotate(0deg); opacity: 1; } to { transform: rotate(180deg); opacity: 0; } }
 @keyframes ace-ring { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.8); opacity: 0; } }
 @keyframes ace-pop { 0% { transform: scale(.4); opacity: 0; } 20% { transform: scale(1.25); opacity: 1; } 70% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.1); opacity: 0; } }
+
+/* Lá theo được (cùng hạng với bàn, người khác đang tấn/đỡ): bôi vàng, bấm là tấn cùng. */
+.card.addable { border: 2px solid #facc15; box-shadow: 0 0 12px rgba(250,204,21,.9), 0 0 4px rgba(250,204,21,.6); }

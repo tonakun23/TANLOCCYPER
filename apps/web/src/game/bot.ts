@@ -1,4 +1,4 @@
-import { canAttackCard, canBeat, defend, attack, resolveFinishAttack, resolveTake, cardLabel, parseCard } from "../../../../packages/game-core/src/engine";
+import { canAttackCard, canBeat, defend, attack, resolveFinishAttack, cardLabel, parseCard } from "../../../../packages/game-core/src/engine";
 import type { Card, GameState, PlayerState } from "../../../../packages/game-core/src/engine";
 
 export function lowestCard(cards: Card[], trump: string): Card {
@@ -14,7 +14,8 @@ export function botDefendStep(state: GameState, bot: PlayerState): string {
   const pair = undefended(state)[0];
   if (!pair) return "";
   const beating = bot.hand.filter((c) => canBeat(pair.attack, c, state.trumpSuit));
-  if (!beating.length) { resolveTake(state, bot.id); return `${bot.name} không đỡ được, lên bài, nhận cả bàn.`; }
+  // Không đỡ được: KHÔNG lên bài ngay, trả tín hiệu TAKE để store mở cửa sổ theo 5s cho người chơi (nếu có lá theo được), hết cửa sổ mới lên bài thật.
+  if (!beating.length) { return `TAKE:${bot.id}`; }
   const card = lowestCard(beating, state.trumpSuit);
   defend(state, bot.id, pair.attack.id, card.id);
   return `${bot.name} đỡ ${cardLabel(pair.attack)} bằng ${cardLabel(card)}.`;
