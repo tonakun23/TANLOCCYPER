@@ -19,12 +19,49 @@
 //   chưa có đồng hồ ép lượt server (client tự đếm giờ tấn/đỡ rồi gửi lệnh), người chơi
 //   mất kết nối giữa ván thì ghế vẫn giữ để reconnect bằng token phòng.
 import http from "node:http";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createPublicKey, createVerify } from "node:crypto";
 import { WebSocketServer } from "ws";
 import { createGame, createCommandProcessor, publicView, canAttackCard, take, finishAttack } from "../../packages/game-core/dist/index.js";
 
 const PORT = Number(process.env.PORT || 3000);
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "";
+function firebaseConfigFromEnv() {
+  if (!FIREBASE_PROJECT_ID) return null;
+  return {
+    apiKey: process.env.FIREBASE_API_KEY || "",
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || `${FIREBASE_PROJECT_ID}.firebaseapp.com`,
+    projectId: FIREBASE_PROJECT_ID,
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${FIREBASE_PROJECT_ID}.appspot.com`,
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "",
+    appId: process.env.FIREBASE_APP_ID || "",
+  };
+}
+// Xác minh Firebase ID token bằng JWKS của Google (không cần firebase-admin hay service account):
+// header.kid -> khóa công khai từ https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com
+// kiểm tra chữ ký RS256, aud == projectId, iss == https://securetoken.google.com/<projectId>, hết hạn, sub.
+let firebaseJwksCache = null, firebaseJwksAt = 0;
+async function verifyFirebaseIdToken(idToken) {
+  if (!FIREBASE_PROJECT_ID) throw Object.assign(new Error("Firebase chưa cấu hình trên Render (thiếu FIREBASE_PROJECT_ID)"), { code: "FIREBASE_NOT_CONFIGURED" });
+  const parts = idToken.split(".");
+  if (parts.length !== 3) throw Object.assign(new Error("ID token không hợp lệ"), { code: "INVALID_FIREBASE_TOKEN" });
+  const b64url = (s) => Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64");
+  let header, payload;
+  try { header = JSON.parse(b64url(parts[0]).toString()); payload = JSON.parse(b64url(parts[1]).toString()); } catch { throw Object.assign(new Error("ID token không hợp lệ"), { code: "INVALID_FIREBASE_TOKEN" }); }
+  if (Date.now() / 1000 > Number(payload.exp || 0)) throw Object.assign(new Error("Token đã hết hạn"), { code: "INVALID_FIREBASE_TOKEN" });
+  if (payload.aud !== FIREBASE_PROJECT_ID) throw Object.assign(new Error("Token không phải của project này"), { code: "INVALID_FIREBASE_TOKEN" });
+  if (payload.iss !== `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`) throw Object.assign(new Error("Issuer không phải Firebase"), { code: "INVALID_FIREBASE_TOKEN" });
+  if (Date.now() - firebaseJwksAt > 3600_000 || !firebaseJwksCache) {
+    const r = await fetch("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com");
+    firebaseJwksCache = await r.json(); firebaseJwksAt = Date.now();
+  }
+  const jwk = (firebaseJwksCache.keys || []).find((k) => k.kid === header.kid);
+  if (!jwk) throw Object.assign(new Error("Không tìm thấy khóa ký token"), { code: "INVALID_FIREBASE_TOKEN" });
+  const key = createPublicKey({ key: jwk, format: "jwk" });
+  const ok = createVerify("RSA-SHA256").update(`${parts[0]}.${parts[1]}`).verify(key, b64url(parts[2]));
+  if (!ok) throw Object.assign(new Error("Chữ ký token không hợp lệ"), { code: "INVALID_FIREBASE_TOKEN" });
+  return { googleId: payload.sub, name: payload.name || payload.email, email: payload.email, avatar: payload.picture || null };
+}
 const API_BASE = process.env.API_BASE || "";
 
 // ---- REST cũ (giữ nguyên) ----
@@ -127,10 +164,22 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "OPTIONS") { res.writeHead(204, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "Content-Type" }); return res.end(); }
     const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
     if (req.method === "GET" && url.pathname === "/health") {
-      return send(res, 200, { ok: true, service: "tanloccyper-game-server", ruleSet: "VN_8_V1", restRooms: rooms.size, lobbies: lobbies.size, uptimeSec: Math.floor(process.uptime()), ws: true, googleConfigured: !!GOOGLE_CLIENT_ID });
+      return send(res, 200, { ok: true, service: "tanloccyper-game-server", ruleSet: "VN_8_V1", restRooms: rooms.size, lobbies: lobbies.size, uptimeSec: Math.floor(process.uptime()), ws: true, googleConfigured: !!GOOGLE_CLIENT_ID, firebaseConfigured: !!FIREBASE_PROJECT_ID });
     }
     if (req.method === "GET" && url.pathname === "/auth/config") {
-      return send(res, 200, { googleClientId: GOOGLE_CLIENT_ID || null, apiBase: API_BASE || null });
+      return send(res, 200, { googleClientId: GOOGLE_CLIENT_ID || null, firebaseConfig: firebaseConfigFromEnv(), apiBase: API_BASE || null });
+    }
+    if (req.method === "POST" && url.pathname === "/auth/firebase") {
+      const body = await readBody(req);
+      if (!body.idToken) return send(res, 400, { error: "MISSING_ID_TOKEN" });
+      try {
+        const user = await verifyFirebaseIdToken(body.idToken);
+        const sessionToken = randomUUID();
+        sessions.set(sessionToken, user);
+        return send(res, 200, { sessionToken, user });
+      } catch (e) {
+        return send(res, e.code === "FIREBASE_NOT_CONFIGURED" ? 503 : 401, { error: e.code || "INVALID_FIREBASE_TOKEN", message: e.message });
+      }
     }
     if (req.method === "POST" && url.pathname === "/auth/google") {
       const body = await readBody(req);
@@ -145,7 +194,7 @@ const server = http.createServer(async (req, res) => {
       }
     }
     if (req.method === "GET" && url.pathname === "/") {
-      return send(res, 200, { service: "tanloccyper-game-server", ruleSet: "VN_8_V1", endpoints: ["GET /health", "GET /auth/config", "POST /auth/google", "WS /ws (create/join/ready/start/command/chat)", "POST /rooms", "GET /rooms/:id?playerId=", "POST /rooms/:id/commands"] });
+      return send(res, 200, { service: "tanloccyper-game-server", ruleSet: "VN_8_V1", endpoints: ["GET /health", "GET /auth/config", "POST /auth/google", "WS /ws (create/join/ready/start/command/chat)", "POST /auth/firebase", "POST /rooms", "GET /rooms/:id?playerId=", "POST /rooms/:id/commands"] });
     }
     if (req.method === "POST" && url.pathname === "/rooms") {
       const body = await readBody(req);
@@ -280,4 +329,4 @@ wss.on("connection", (ws) => {
   });
 });
 
-server.listen(PORT, "0.0.0.0", () => console.log(`tanloccyper-game-server listening on ${PORT} (WS /ws, Google configured: ${!!GOOGLE_CLIENT_ID})`));
+server.listen(PORT, "0.0.0.0", () => console.log(`tanloccyper-game-server listening on ${PORT} (WS /ws, Google configured: ${!!GOOGLE_CLIENT_ID}, Firebase configured: ${!!FIREBASE_PROJECT_ID})`));
