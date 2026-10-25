@@ -3,6 +3,14 @@ import { createGame, attack, defend, transfer, resolveTake, resolveFinishAttack,
 import type { GameState } from "../../../packages/game-core/src/engine";
 import { botDefendStep, botAttackStep, botAdderStep, lowestCard } from "./game/bot";
 import { playDealSound, playCardSound, playDrawSound } from "./game/sound";
+import { API_BASE, WS_URL, viewToGame } from "./game/online";
+// WebSocket online (singleton, chỉ 1 kết nối mỗi phiên)
+let onlineWs: WebSocket | null = null;
+let onlineActionSeq = 0;
+function onlineSend(obj: Record<string, unknown>) { if (onlineWs && onlineWs.readyState === 1) onlineWs.send(JSON.stringify(obj)); }
+function onlinePlayerToken(code: string) { try { return localStorage.getItem(`tanloc-online-${code}`) || null; } catch { return null; } }
+function onlineSaveToken(code: string, token: string) { try { localStorage.setItem(`tanloc-online-${code}`, token); } catch { /* bỏ qua */ } }
+function onlineSession() { try { return localStorage.getItem("tanloc-session") || null; } catch { return null; } }
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 function cloneGame(g: GameState): GameState {
@@ -15,7 +23,7 @@ export interface ChatMsg { id: number; from: string; text: string; }
 const BOT_REPLIES = ["Chơi hay đấy!", "Lá này khó đỡ quá!", "Tới lượt bạn rồi kìa.", "Haha, ván này căng!", "Để xem bạn đỡ sao đây.", "Bài mình cũng không đẹp lắm đâu."];
 
 interface GameStore {
-  screen: "lobby" | "rooms" | "create" | "game";
+  screen: "lobby" | "rooms" | "create" | "waiting" | "game"; waitingCode: string | null; waitingCount: number; waitingReady: boolean; waitingMode: "private" | "quick" | "join"; myId: string; onlineMode: boolean; onlineRoom: { code: string; bet: string; maxPlayers: number; hostId: string; state: string; players: { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean }[] } | null; onlineMyLobbyId: string | null; onlineWsStatus: string; onlineError: string | null; googleUser: { name: string; email: string; avatar: string | null } | null; googleClientId: string | null;
   // Mã phòng riêng (chơi với bạn): hiện luôn góc phải trong ván, thoát ván là hết.
   roomCode: string | null; createPrivate: boolean;
   playerName: string; playerCount: number; allowTransfer: boolean;
@@ -30,13 +38,14 @@ interface GameStore {
   // Chat chỉ tồn tại trong ván: chỉ ở bộ nhớ, không lưu DB, không localStorage.
   chat: ChatMsg[];
   setPlayerName: (v: string) => void; setPlayerCount: (v: number) => void; setAllowTransfer: (v: boolean) => void;
-  startGame: () => void; backToLobby: () => void; goToRooms: () => void; goToCreate: (isPrivate: boolean) => void; setRoomCode: (code: string | null) => void; setSelected: (v: string | null) => void;
+  startGame: () => void; backToLobby: () => void; goToRooms: () => void; goToCreate: (isPrivate: boolean) => void; goToWaiting: (code: string, count: number, mode: "private" | "quick" | "join") => void; setWaitingReady: (v: boolean) => void; setRoomCode: (code: string | null) => void; setSelected: (v: string | null) => void;
   playCard: (cardId: string) => void; defendPair: (attackId: string, defenseCardId?: string) => void;
   takeCards: () => void; finishAttackAction: () => void; transferCard: () => void; passAdd: () => void;
   drawCards: () => Promise<void>; runDrawPhase: () => Promise<void>; sortHand: (mode: "suit" | "rank") => void;
   runBots: () => Promise<void>; addLog: (msg: string) => void;
   sendChat: (text: string) => void; clearNotice: () => void;
-  autoLowestAttack: () => void; passAttack: () => void; followWindow: { mode: "take" | "add"; takerId?: string; key: number } | null; resolveTakeFollow: () => void; passFollow: () => void;
+  autoLowestAttack: () => void; passAttack: () => void; followWindow: { mode: "take" | "add"; takerId?: string; key: number } | null; resolveTakeFollow: () => void; passFollow: () => void; takeAnimCards: string[] | null; clearTakeAnim: () => void;
+  onlineConnect: (m: Record<string, unknown>) => void; onlineCreateRoom: (bet: string, count: number) => void; onlineJoinRoom: (code: string) => void; onlineReady: (v: boolean) => void; onlineStart: () => void; onlineLeave: () => void; setGoogleUser: (u: { name: string; email: string; avatar: string | null } | null) => void; loadGoogleConfig: () => Promise<void>; googleLogin: (credential: string) => Promise<void>;
 }
 
 // Lá mới xuất hiện trên bàn sau một nước đi (so với trước nước đi).
@@ -54,7 +63,7 @@ function tableIds(game: GameState): Set<string> {
 }
 
 export const useGameStore = create<GameStore>()((set, get) => ({
-  screen: "lobby", roomCode: null, createPrivate: false, playerName: "Bạn", playerCount: 4, allowTransfer: true,
+  screen: "lobby", roomCode: null, waitingCode: null, waitingCount: 4, waitingReady: false, waitingMode: "private", myId: HUMAN_ID, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, onlineWsStatus: "disconnected", onlineError: null, googleUser: null, googleClientId: null, createPrivate: false, playerName: "Bạn", playerCount: 4, allowTransfer: true,
   game: null, selected: null, humanAddPassed: false, botBusy: false,
   notice: null, noticeKey: 0, flying: null, drawFlying: null, drawing: false, chat: [],
   setPlayerName: (v) => set({ playerName: v }),
@@ -65,6 +74,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   clearNotice: () => set({ notice: null }),
   sendChat: (text) => {
     const t = text.trim(); if (!t) return;
+    if (get().onlineMode) { onlineSend({ type: "chat", text: t }); return; }
     const st = store.getState();
     const me = st.playerName.trim() || "Bạn";
     const id = Date.now();
@@ -78,9 +88,11 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       }, 900);
     }
   },
-  backToLobby: () => set({ screen: "lobby", game: null, selected: null, notice: null, flying: null, chat: [], roomCode: null }),
+  backToLobby: () => { const st = get(); if (st.onlineMode) { try { onlineSend({ type: "leave" }); } catch { /* bỏ qua */ } try { onlineWs?.close(); } catch { /* bỏ qua */ } set({ screen: "lobby", game: null, selected: null, notice: null, flying: null, chat: [], roomCode: null, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, followWindow: null, takeAnimCards: null }); return; } set({ screen: "lobby", game: null, selected: null, notice: null, flying: null, chat: [], roomCode: null }); },
   goToRooms: () => set({ screen: "rooms" }),
   goToCreate: (isPrivate) => set({ screen: "create", createPrivate: isPrivate }),
+  goToWaiting: (code, count, mode) => set({ screen: "waiting", waitingCode: code, waitingCount: count, waitingReady: false, waitingMode: mode, roomCode: code }),
+  setWaitingReady: (v) => set({ waitingReady: v }),
   setRoomCode: (code) => set({ roomCode: code }),
   startGame: () => {
     const { playerName, playerCount } = get(); const allowTransfer = false; // Tony bo chuc nang chuyen tan
@@ -104,7 +116,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         game.defenderInitialHandCount = di.hand.length;
       }
     }
-    set({ screen: "game", game: cloneGame(game), selected: null, humanAddPassed: false, followWindow: null, chat: [{ id: Date.now(), from: "Hệ thống", text: "Chat trong ván này thôi, thoát ván là mất, không lưu lại." }], notice: `Ván mới: chất chủ ${game.trumpSuit}, ${game.players.find((p) => p.id === game.attackerId)?.name} tấn đầu.`, noticeKey: Date.now() });
+    set({ screen: "game", game: cloneGame(game), selected: null, humanAddPassed: false, followWindow: null, takeAnimCards: null, myId: HUMAN_ID, onlineMode: false, chat: [{ id: Date.now(), from: "Hệ thống", text: "Chat trong ván này thôi, thoát ván là mất, không lưu lại." }], notice: `Ván mới: chất chủ ${game.trumpSuit}, ${game.players.find((p) => p.id === game.attackerId)?.name} tấn đầu.`, noticeKey: Date.now() });
     playDealSound();
     void get().runBots();
   },
@@ -120,15 +132,29 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   sortHand: () => {},
   autoLowestAttack: () => {},
   passAttack: () => {},
-  followWindow: null, resolveTakeFollow: () => {}, passFollow: () => {},
+  followWindow: null, resolveTakeFollow: () => {}, passFollow: () => {}, takeAnimCards: null, clearTakeAnim: () => {}, onlineConnect: () => {}, onlineCreateRoom: () => {}, onlineJoinRoom: () => {}, onlineReady: () => {}, onlineStart: () => {}, onlineLeave: () => {}, setGoogleUser: () => {}, loadGoogleConfig: async () => {}, googleLogin: async () => {},
 }));
 
 // Gán các action sau khi store tạo xong để tránh vòng tham chiếu trong create().
 const store = useGameStore;
 store.setState({
   playCard: (cardId: string) => {
-    const { game, selected } = store.getState();
+    const { game, selected, onlineMode, myId } = store.getState();
     if (!game || game.phase === "FINISHED") return;
+    if (onlineMode) {
+      const meO = game.players.find((pl) => pl.id === myId); if (!meO) return;
+      if (game.defenderId === myId) {
+        const card = parseCard(cardId);
+        const beatable = game.table.filter((x) => !x.defense && canBeat(x.attack, card, game.trumpSuit));
+        if (beatable.length === 1) { store.getState().defendPair(beatable[0].attack.id, cardId); return; }
+        if (beatable.length > 1) { store.setState({ selected: cardId }); return; }
+        store.setState({ selected: cardId }); return;
+      }
+      const cardO = meO.hand.find((c) => c.id === cardId);
+      if (cardO && canAttackCard(game, myId, cardO)) { onlineActionSeq++; onlineSend({ type: "command", actionId: `online-${Date.now()}-${onlineActionSeq}`, expectedVersion: game.version, cmdType: "ATTACK", payload: { cardId } }); store.setState({ selected: null }); }
+      else store.setState({ selected: cardId });
+      return;
+    }
     const me = game.players.find((p) => p.id === HUMAN_ID); if (!me) return;
     if (game.defenderId === HUMAN_ID) {
       const card = parseCard(cardId);
@@ -149,18 +175,29 @@ store.setState({
     void selected;
   },
   defendPair: (attackId: string, defenseCardId?: string) => {
-    const { game, selected } = store.getState();
+    const { game, selected, onlineMode, myId } = store.getState();
+    if (onlineMode) {
+      const defenseId = defenseCardId || selected; if (!game || !defenseId) return;
+      onlineActionSeq++; onlineSend({ type: "command", actionId: `online-${Date.now()}-${onlineActionSeq}`, expectedVersion: game.version, cmdType: "DEFEND", payload: { attackCardId: attackId, defenseCardId: defenseId } }); store.setState({ selected: null }); return;
+    }
     const defenseId = defenseCardId || selected;
     if (!game || !defenseId) return;
     const before = tableIds(game);
     try { defend(game, HUMAN_ID, attackId, defenseId); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), selected: null, humanAddPassed: false, flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); playCardSound(); store.getState().addLog(`Bạn đỡ ${attackId} bằng ${cardLabel(parseCard(defenseId))}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
   },
   takeCards: () => {
-    const { game } = store.getState(); if (!game) return;
-    try { resolveTake(game, HUMAN_ID); store.setState({ game: cloneGame(game), selected: null }); store.getState().addLog("Bạn lên bài, nhận cả bàn."); void store.getState().runDrawPhase(); } catch (e) { alert((e as Error).message); }
+    const { game, onlineMode } = store.getState(); if (!game) return;
+    if (onlineMode) {
+      const taken: string[] = []; for (const pr of game.table) { taken.push(pr.attack.id); if (pr.defense) taken.push(pr.defense.id); }
+      onlineActionSeq++; onlineSend({ type: "command", actionId: `online-${Date.now()}-${onlineActionSeq}`, expectedVersion: game.version, cmdType: "TAKE", payload: {} }); store.setState({ selected: null, takeAnimCards: taken.length ? taken : null }); return;
+    }
+    // Hiệu ứng lên bài: giữ lại các lá trên bàn để App vẽ bay vào tay mình, rồi mới dọn bàn.
+    const taken: string[] = []; for (const pr of game.table) { taken.push(pr.attack.id); if (pr.defense) taken.push(pr.defense.id); }
+    try { resolveTake(game, HUMAN_ID); store.setState({ game: cloneGame(game), selected: null, takeAnimCards: taken.length ? taken : null }); store.getState().addLog("Bạn lên bài, nhận cả bàn."); void store.getState().runDrawPhase(); } catch (e) { alert((e as Error).message); }
   },
   finishAttackAction: () => {
-    const { game } = store.getState(); if (!game) return;
+    const { game, onlineMode } = store.getState(); if (!game) return;
+    if (onlineMode) { onlineActionSeq++; onlineSend({ type: "command", actionId: `online-${Date.now()}-${onlineActionSeq}`, expectedVersion: game.version, cmdType: "FINISH_ATTACK", payload: {} }); return; }
     try { resolveFinishAttack(game, HUMAN_ID); store.setState({ game: cloneGame(game) }); store.getState().addLog("Bạn kết thúc đợt."); void store.getState().runDrawPhase(); } catch (e) { alert((e as Error).message); }
   },
   // Bốc bài: người chơi bấm nút, bốc từng lá (hiệu ứng bay từ nọc) cho đủ 8 lá,
@@ -224,7 +261,13 @@ store.setState({
     store.setState({ game: cloneGame(game) });
   },
   autoLowestAttack: () => {
-    const { game } = store.getState(); if (!game) return;
+    const { game } = store.getState(); if (store.getState().onlineMode) {
+      const g = store.getState().game; if (!g) return;
+      const myId = store.getState().myId; const me = g.players.find((pl) => pl.id === myId); if (!me || !me.hand.length) return;
+      let card = lowestCard(me.hand, g.trumpSuit);
+      if (g.table.length > 0) { const addable = me.hand.filter((c) => canAttackCard(g, myId, c)); if (!addable.length) { store.getState().finishAttackAction(); return; } card = lowestCard(addable, g.trumpSuit); }
+      onlineActionSeq++; onlineSend({ type: "command", actionId: `online-${Date.now()}-${onlineActionSeq}`, expectedVersion: g.version, cmdType: "ATTACK", payload: { cardId: card.id } }); return;
+    } if (!game) return;
     const me = game.players.find((p) => p.id === HUMAN_ID); if (!me || !me.hand.length) return;
     // Hết giờ tấn: tự đánh lá yếu nhất có thể đánh được. Bàn trống thì lá yếu nhất tay;
     // đã tấn + đỡ hết thì lá yếu nhất trong các lá thêm được cùng hạng; không thêm được thì kết thúc đợt.
@@ -254,7 +297,8 @@ store.setState({
     void store.getState().runBots();
   },
   resolveTakeFollow: () => {
-    const { game, followWindow } = store.getState(); if (!game || !followWindow || followWindow.mode !== "take" || !followWindow.takerId) return;
+    const { game, followWindow, onlineMode } = store.getState(); if (onlineMode) return;
+    if (!game || !followWindow || followWindow.mode !== "take" || !followWindow.takerId) return;
     const taker = game.players.find((pl) => pl.id === followWindow.takerId); if (!taker) return;
     try { resolveTake(game, followWindow.takerId); } catch { return; }
     store.setState({ game: cloneGame(game), followWindow: null });
@@ -262,13 +306,81 @@ store.setState({
     void store.getState().runDrawPhase();
   },
   passFollow: () => {
-    const { followWindow } = store.getState(); if (!followWindow) return;
+    const { followWindow, onlineMode } = store.getState(); if (!followWindow) return;
+    if (onlineMode) { onlineActionSeq++; onlineSend({ type: "command", actionId: `online-${Date.now()}-${onlineActionSeq}`, expectedVersion: store.getState().game?.version || 0, cmdType: "PASS_ADD", payload: {} }); store.setState({ followWindow: null }); return; }
     if (followWindow.mode === "take") { store.getState().resolveTakeFollow(); return; }
     store.setState({ followWindow: null, humanAddPassed: true });
     void store.getState().runBots();
   },
+  // ---- Chơi online qua WebSocket ----
+  onlineConnect: (firstMsg: Record<string, unknown>) => {
+    try { onlineWs?.close(); } catch { /* bỏ qua */ }
+    store.setState({ onlineWsStatus: "connecting", onlineError: null });
+    const ws = new WebSocket(WS_URL); onlineWs = ws;
+    ws.onopen = () => { store.setState({ onlineWsStatus: "connected" }); ws.send(JSON.stringify(firstMsg)); };
+    ws.onclose = () => { const st = store.getState(); if (st.onlineMode || st.screen === "waiting") store.setState({ onlineWsStatus: "disconnected" }); };
+    ws.onerror = () => { store.setState({ onlineWsStatus: "error", onlineError: "Không kết nối được máy chủ (Render có thể đang ngủ, thử lại sau vài giây)." }); };
+    ws.onmessage = (ev) => {
+      let m: Record<string, unknown>;
+      try { m = JSON.parse(String(ev.data)); } catch { return; }
+      const st = store.getState();
+      if (m.type === "joined") {
+        onlineSaveToken(String(m.code), String(m.token));
+        store.setState({ onlineMyLobbyId: String(m.playerId), waitingCode: String(m.code), roomCode: String(m.code), screen: "waiting", onlineMode: true, onlineError: null });
+      } else if (m.type === "room") {
+        store.setState({ onlineRoom: { code: String(m.code), bet: String(m.bet), maxPlayers: Number(m.maxPlayers), hostId: String(m.hostId), state: String(m.state), players: (m.players as { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean }[]) }, waitingCode: String(m.code) });
+        if (m.state === "playing" && st.screen !== "game") store.setState({ screen: "game" });
+      } else if (m.type === "game") {
+        const view = m.view as Record<string, unknown>;
+        const myEngineId = String(m.myEngineId);
+        const g = viewToGame(view, myEngineId) as unknown as GameState;
+        const prev = st.game;
+        const played = prev ? (() => { const before = new Set<string>(); for (const pr of prev.table) { before.add(pr.attack.id); if (pr.defense) before.add(pr.defense.id); } for (const pr of g.table) { if (!before.has(pr.attack.id)) return pr.attack.id; if (pr.defense && !before.has(pr.defense.id)) return pr.defense.id; } return null; })() : null;
+        store.setState({ game: cloneGame(g), myId: myEngineId, onlineMode: true, screen: "game", selected: null, flying: played ? { cardId: played, by: "online", key: Date.now() } : st.flying });
+        if (played) playCardSound();
+      } else if (m.type === "follow") {
+        const mode = m.mode === "take" ? "take" : "add";
+        const meLobby = st.onlineMyLobbyId;
+        const iAmAdder = meLobby && (m.adders as string[]).includes(meLobby);
+        if (iAmAdder) store.setState({ followWindow: { mode, takerId: undefined, key: Date.now() } });
+        store.getState().addLog(mode === "take" ? `${m.actorName} lên bài - bạn có 5s để theo!` : `Bạn có 5s để theo!`);
+      } else if (m.type === "follow-end") {
+        store.setState({ followWindow: null });
+      } else if (m.type === "chat") {
+        store.setState((s) => ({ chat: [...s.chat, { id: Date.now(), from: String(m.from), text: String(m.text) }] }));
+      } else if (m.type === "command-result") {
+        if (!m.accepted) store.getState().addLog(String(m.message || "Nước đi không hợp lệ"));
+      } else if (m.type === "error") {
+        store.setState({ onlineError: String(m.message || m.code) });
+      }
+    };
+  },
+  onlineCreateRoom: (bet: string, count: number) => {
+    const st = store.getState();
+    store.setState({ onlineMode: true, screen: "waiting", waitingMode: "private", waitingCount: count });
+    (store.getState() as unknown as { onlineConnect: (m: Record<string, unknown>) => void }).onlineConnect({ type: "create", name: st.playerName.trim() || "Bạn", avatar: st.googleUser?.avatar || null, maxPlayers: count, bet, sessionToken: onlineSession() });
+  },
+  onlineJoinRoom: (code: string) => {
+    const st = store.getState();
+    store.setState({ onlineMode: true, screen: "waiting", waitingMode: "join", waitingCode: code });
+    (store.getState() as unknown as { onlineConnect: (m: Record<string, unknown>) => void }).onlineConnect({ type: "join", code, name: st.playerName.trim() || "Bạn", avatar: st.googleUser?.avatar || null, token: onlinePlayerToken(code), sessionToken: onlineSession() });
+  },
+  onlineReady: (v: boolean) => { store.setState({ waitingReady: v }); onlineSend({ type: "ready", ready: v }); },
+  onlineStart: () => { onlineSend({ type: "start" }); },
+  onlineLeave: () => { try { onlineSend({ type: "leave" }); } catch { /* bỏ qua */ } try { onlineWs?.close(); } catch { /* bỏ qua */ } store.setState({ onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, game: null, screen: "lobby" }); },
+  setGoogleUser: (u: { name: string; email: string; avatar: string | null } | null) => { store.setState({ googleUser: u }); if (u) store.setState({ playerName: u.name }); },
+  loadGoogleConfig: async () => {
+    try { const r = await fetch(`${API_BASE}/auth/config`); const j = await r.json(); if (j.googleClientId) store.setState({ googleClientId: j.googleClientId }); } catch { /* chưa có backend thì thôi */ }
+  },
+  googleLogin: async (credential: string) => {
+    const r = await fetch(`${API_BASE}/auth/google`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: credential }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.message || j.error || "Đăng nhập Google thất bại");
+    try { localStorage.setItem("tanloc-session", j.sessionToken); } catch { /* bỏ qua */ }
+    store.setState({ googleUser: j.user, playerName: j.user.name });
+  },
   runBots: async () => {
-    const s = store.getState(); if (s.botBusy || !s.game || s.game.phase === "FINISHED") return;
+    const s = store.getState(); if (s.onlineMode) return; if (s.botBusy || !s.game || s.game.phase === "FINISHED") return;
     if (s.game.phase === "DRAWING") { void store.getState().runDrawPhase(); return; }
     store.setState({ botBusy: true });
     try {

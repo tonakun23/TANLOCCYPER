@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { useGameStore, HUMAN_ID } from "./store";
+import { useGameStore } from "./store";
+import { loadGoogleScript } from "./game/online";
 import { CardView } from "./components/CardView";
 import { TableCanvas } from "./components/TableCanvas";
 import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, canAttackCard, cardLabel } from "../../../packages/game-core/src/engine";
-import { X, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, ArrowDownWideNarrow, } from "lucide-react";
+import { X, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, Crown, } from "lucide-react";
 import { playDealSound, playCardSound, playTrumpAceSound, setSoundEnabled, setSoundVolume } from "./game/sound";
 const ic = { size: 22, strokeWidth: 2 };
 
@@ -20,6 +21,26 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [followSeconds, setFollowSeconds] = useState(5);
+  const [joinCode, setJoinCode] = useState("");
+  const [starting, setStarting] = useState<null | { step: "count" | "deal" | "trump"; count: number; deal: number }>(null);
+  const [firstEffect, setFirstEffect] = useState(false);
+  const [googleError, setGoogleError] = useState("");
+  useEffect(() => { void s.loadGoogleConfig(); }, []);
+  useEffect(() => {
+    if (!s.googleClientId) return;
+    let cancelled = false;
+    loadGoogleScript().then(() => {
+      if (cancelled) return;
+      const g = (window as unknown as { google?: { accounts: { id: { initialize: (o: Record<string, unknown>) => void; renderButton: (el: HTMLElement, o: Record<string, unknown>) => void } } } }).google;
+      if (!g) return;
+      g.accounts.id.initialize({ client_id: s.googleClientId, callback: async (resp: { credential: string }) => {
+        try { await s.googleLogin(resp.credential); setGoogleError(""); } catch (e) { setGoogleError((e as Error).message); }
+      } });
+      const el = document.getElementById("google-login-btn");
+      if (el) { el.innerHTML = ""; g.accounts.id.renderButton(el, { theme: "outline", size: "large", text: "signin_with" }); }
+    }).catch(() => setGoogleError("Không tải được nút Google, thử lại sau."));
+    return () => { cancelled = true; };
+  }, [s.googleClientId]);
   // Bong bóng chat trên avatar: hiện 6 giây rồi tự ẩn.
   useEffect(() => {
     if (!bubble) return;
@@ -33,15 +54,50 @@ export default function App() {
     return () => clearTimeout(id);
   }, [s.noticeKey, s.notice, s]);
   const game = s.game;
+  const myId = s.myId;
+  // Online: ván đầu tiên (version 1) thì chạy đếm + phát bài + chọn chủ như ván bot.
+  useEffect(() => {
+    if (s.onlineMode && game && game.version === 1 && !starting) setStarting({ step: "count", count: 3, deal: 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.version, s.onlineMode]);
+  // Về nhất: hiện hiệu ứng 4 giây rồi ẩn, vương miện số 1 vẫn ở lại trên avatar.
+  const isFirst = !!game && game.finishOrder[0] === myId;
+  useEffect(() => {
+    if (!isFirst) return;
+    setFirstEffect(true);
+    const id = setTimeout(() => setFirstEffect(false), 4000);
+    return () => clearTimeout(id);
+  }, [isFirst]);
+  // Lên bài: hiệu ứng bay vào tay mình xong thì dọn.
+  useEffect(() => {
+    if (!s.takeAnimCards) return;
+    const id = setTimeout(() => s.clearTakeAnim(), s.takeAnimCards.length * 150 + 900);
+    return () => clearTimeout(id);
+  }, [s.takeAnimCards]);
+  // Bắt đầu ván: đếm 3-2-1-Bắt đầu -> phát bài lần lượt -> chọn chất chủ, rồi mới hiện bàn.
+  useEffect(() => {
+    if (!starting) return;
+    if (starting.step === "count") {
+      const id = setTimeout(() => setStarting((v) => v ? (v.count > 1 ? { ...v, count: v.count - 1 } : { step: "deal", count: 0, deal: 0 }) : null), 700);
+      return () => clearTimeout(id);
+    }
+    if (starting.step === "deal") {
+      const id = setTimeout(() => setStarting((v) => v ? (v.deal >= 32 ? { step: "trump", count: 0, deal: v.deal } : { ...v, deal: v.deal + 1 }) : null), 120);
+      return () => clearTimeout(id);
+    }
+    const id = setTimeout(() => setStarting(null), 1600);
+    return () => clearTimeout(id);
+  }, [starting]);
+  const startBotGame = () => { s.setPlayerCount(4); s.startGame(); setStarting({ step: "count", count: 3, deal: 0 }); };
   // A chủ ra bàn: phát âm thanh dồn riêng, bất kể người đánh là mình hay bot.
   useEffect(() => {
     if (!s.flying || !game) return;
     const c = parseCard(s.flying.cardId);
     if (c.rank === 14 && c.suit === game.trumpSuit) playTrumpAceSound();
   }, [s.flying, game]);
-  const me = game?.players.find((p) => p.id === HUMAN_ID);
-  const iAmDefender = game?.defenderId === HUMAN_ID;
-  const iAmAttacker = game?.attackerId === HUMAN_ID;
+  const me = game?.players.find((p) => p.id === myId);
+  const iAmDefender = game?.defenderId === myId;
+  const iAmAttacker = game?.attackerId === myId;
   const undefended = game?.table.filter((x) => !x.defense) ?? [];
   const allDefended = !!game && game.table.length > 0 && game.table.every((x) => x.defense);
   // Thời gian đỡ: 30 giây, tính cho MỌI người đỡ (cả bot, để vẽ vòng sáng).
@@ -56,7 +112,7 @@ export default function App() {
     const id = setInterval(() => setDefendSeconds((v) => {
       if (v <= 1) {
         // Hết giờ đỡ mà không đỡ: coi như tự lên bài (chỉ áp dụng cho người chơi).
-        if (game && game.defenderId === HUMAN_ID) s.takeCards();
+        if (game && game.defenderId === myId) s.takeCards();
         return 30;
       }
       return v - 1;
@@ -98,69 +154,15 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [followKey]);
   const trumpMarker: Record<string, string> = { S: "spades", C: "clubs", H: "hearts", D: "diamonds" };
-  // Phòng Tấn theo từng hạng — chỉ là điểm thưởng trong game, KHÔNG tiền thật.
-  const [tier, setTier] = useState("tap-su");
-  const [rooms, setRooms] = useState<Record<string, { id: number; bet: string; players: number; min: string }[]>>({
-    "tap-su": [
-      { id: 144459, bet: "20K", players: 3, min: "200K" },
-      { id: 143122, bet: "5K", players: 3, min: "50K" },
-      { id: 144530, bet: "5K", players: 3, min: "50K" },
-      { id: 144738, bet: "5K", players: 2, min: "50K" },
-      { id: 143314, bet: "5K", players: 3, min: "50K" },
-    ],
-    "nghiep-du": [
-      { id: 145201, bet: "100K", players: 4, min: "1M" },
-      { id: 145112, bet: "50K", players: 3, min: "500K" },
-      { id: 145330, bet: "100K", players: 2, min: "1M" },
-      { id: 145045, bet: "50K", players: 3, min: "500K" },
-      { id: 145278, bet: "50K", players: 4, min: "500K" },
-    ],
-    "chuyen-nghiep": [
-      { id: 146501, bet: "500K", players: 3, min: "5M" },
-      { id: 146212, bet: "200K", players: 4, min: "2M" },
-      { id: 146390, bet: "500K", players: 2, min: "5M" },
-      { id: 146105, bet: "200K", players: 3, min: "2M" },
-      { id: 146444, bet: "200K", players: 3, min: "2M" },
-    ],
-    "master": [
-      { id: 147901, bet: "1M", players: 3, min: "6M" },
-      { id: 147712, bet: "500K", players: 4, min: "5M" },
-      { id: 147830, bet: "1M", players: 2, min: "6M" },
-      { id: 147655, bet: "500K", players: 3, min: "5M" },
-      { id: 147514, bet: "1M", players: 3, min: "6M" },
-    ],
-  });
-  const tierNames: Record<string, string> = { "tap-su": "Tập Sự", "nghiep-du": "Nghiệp Dư", "chuyen-nghiep": "Chuyên Nghiệp", "master": "Master" };
-  const joinRoom = (roomId: number) => {
-    // Vào phòng = chơi ván Tấn VN-8 với bot lấp ghế trống (online realtime chưa làm).
-    s.setPlayerCount(4);
-    s.startGame();
-  };
-  const createRoom = () => {
-    const id = 148000 + Math.floor(Math.random() * 899);
-    const first = rooms[tier][0];
-    setRooms((r) => ({ ...r, [tier]: [{ id, bet: first.bet, players: 1, min: first.min }, ...r[tier]] }));
-  };
   // Màn Tạo phòng (ảnh mẫu): slider mức điểm, chọn số người, nút TẠO PHÒNG.
   const BET_LEVELS = ["5K", "20K", "50K", "100K", "200K", "500K", "1M"];
   const BET_MINS: Record<string, string> = { "5K": "50K", "20K": "200K", "50K": "500K", "100K": "1M", "200K": "2M", "500K": "5M", "1M": "6M" };
-  const BET_TIERS: Record<string, string> = { "5K": "tap-su", "20K": "tap-su", "50K": "nghiep-du", "100K": "nghiep-du", "200K": "chuyen-nghiep", "500K": "chuyen-nghiep", "1M": "master" };
   const [betIdx, setBetIdx] = useState(0);
   const [createCount, setCreateCount] = useState(4);
   const submitCreateRoom = () => {
     const id = 148000 + Math.floor(Math.random() * 899);
-    const bet = BET_LEVELS[betIdx];
-    if (s.createPrivate) {
-      // Phòng riêng chơi với bạn: tạo mã phòng, vào ván luôn, mã hiện góc phải trong ván.
-      s.setRoomCode(String(id));
-      s.setPlayerCount(createCount);
-      s.startGame();
-    } else {
-      const t = BET_TIERS[bet];
-      setTier(t);
-      setRooms((r) => ({ ...r, [t]: [{ id, bet, players: 1, min: BET_MINS[bet] }, ...r[t]] }));
-      s.goToRooms();
-    }
+    // Chơi với bạn / tạo phòng: KHÔNG bot, tạo phòng thật qua WebSocket, mã phòng hiện giữa bàn chờ.
+    s.onlineCreateRoom(BET_LEVELS[betIdx], createCount);
   };
   const homeTop = (
     <div className="tan-top">
@@ -177,7 +179,7 @@ export default function App() {
       <div style={{ display: "flex", gap: 12 }}>
         <button className="tan-icon" style={{ cursor: "default" }} aria-label="Bạn bè (chưa mở)"><Users {...ic} /></button>
         <button className="tan-icon" aria-label="Hướng dẫn luật chơi" onClick={() => setHelpOpen(true)}><HelpCircle {...ic} /></button>
-        <button className="tan-icon" style={{ cursor: "default" }} aria-label="Cài đặt (chưa mở ở sảnh)"><Settings {...ic} /></button>
+        <button className="tan-icon" aria-label="Cài đặt âm thanh" onClick={() => setSettingsOpen(true)}><Settings {...ic} /></button>
       </div>
     </div>
   );
@@ -246,38 +248,77 @@ export default function App() {
     return (
       <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
         <div className="tan-rooms-top">
-          <div style={{ margin: "0 auto", display: "flex", gap: 12 }}>
-            <button className="tan-pill orange">CHƠI NGAY</button>
+          <div style={{ margin: "0 auto", display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+            <button className="tan-pill orange" onClick={() => s.onlineCreateRoom("5K", 4)}>CHƠI NGAY</button>
             <button className="tan-pill green" onClick={() => s.goToCreate(false)}>TẠO PHÒNG</button>
+            <button className="tan-pill" style={{ background: "#7c3aed", color: "#fff" }} onClick={startBotGame}>CHƠI VỚI BOT</button>
           </div>
           <button className="tan-icon" onClick={s.backToLobby} aria-label="Về trang chủ"><Home {...ic} /></button>
         </div>
-        <div className="tan-table">
-          <div className="tan-head"><span>Phòng</span><span>Mức điểm</span><span>Số người</span><span>Tối thiểu</span><span>Trạng thái</span></div>
-          <div className="tan-list">
-            {rooms[tier].map((r) => (
-              <div className="tan-row" key={r.id}>
-                <span className="tan-room-id">{r.id}</span>
-                <span className="tan-bet">{r.bet}</span>
-                <span className="tan-hearts">{[1, 2, 3, 4].map((i) => <span key={i} className={i <= r.players ? "on" : "off"}>♥</span>)}</span>
-                <span className="tan-min">{r.min}</span>
-                <button className="tan-join" onClick={() => joinRoom(r.id)}>Tham gia</button>
+        <div style={{ padding: "24px 20px", maxWidth: 640, margin: "0 auto", width: "100%" }}>
+          <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fef3c7", marginBottom: 8 }}>Vào phòng bạn bè bằng mã phòng</h2>
+          <p style={{ color: "rgba(255,255,255,.75)", fontSize: 14, marginBottom: 12 }}>Chơi với bạn là chơi với người thật, không có bot trong phòng. Nhập mã phòng bạn bè gửi, bấm Vào phòng để vào phòng chờ.</p>
+          <div style={{ display: "flex", gap: 12 }}>
+            <input className="text-black px-4 py-3 rounded-full flex-1 font-bold" placeholder="Nhập mã phòng 6 số, ví dụ 148123" value={joinCode} onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
+            <button className="tan-pill green" disabled={joinCode.length !== 6} style={{ opacity: joinCode.length === 6 ? 1 : 0.5 }} onClick={() => s.onlineJoinRoom(joinCode)}>Vào phòng</button>
+          </div>
+          <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fef3c7", margin: "28px 0 8px" }}>Phòng thật đang mở</h2>
+          <p style={{ color: "rgba(255,255,255,.6)", fontSize: 14 }}>Chưa có phòng thật nào đang mở. Đã bỏ danh sách phòng ảo tạo bot trước đây. Tạo phòng mới để bạn bè vào bằng mã phòng, hoặc bấm Chơi với bot để chơi ngay.</p>
+        </div>
+        <div style={{ flex: 1 }} />
+        <p style={{ textAlign: "center", color: "rgba(255,255,255,.6)", fontSize: 13, paddingBottom: 12 }}>Xu trong Tấn chỉ là điểm thưởng, không nạp/rút hay đổi tiền thật.</p>
+      </div>
+    );
+  }
+  if (s.screen === "waiting") {
+    const code = s.waitingCode || "------";
+    const roomPlayers = s.onlineRoom?.players || [];
+    const maxSeats = s.onlineRoom?.maxPlayers || Math.max(2, s.waitingCount);
+    const seats = Array.from({ length: maxSeats }, (_, i) => roomPlayers[i] || null);
+    const selfRoom = roomPlayers.find((pl) => pl.id === s.onlineMyLobbyId);
+    const isHost = !!selfRoom?.isHost;
+    const canStart = isHost && roomPlayers.length >= 2 && roomPlayers.every((pl) => pl.ready);
+    return (
+      <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
+        <div className="tan-rooms-top">
+          <h1 style={{ margin: "0 auto", fontSize: "clamp(20px, 5vh, 34px)", letterSpacing: 1, color: "#fef3c7" }}>{s.waitingMode === "quick" ? "ĐANG TÌM BÀN CHƠI NGAY" : "PHÒNG CHỜ - CHƠI VỚI BẠN"}</h1>
+          <button className="tan-icon" onClick={s.backToLobby} aria-label="Về trang chủ"><X size={22} /></button>
+        </div>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 20 }}>
+          <div style={{ width: "min(92vw, 560px)", borderRadius: 999, background: "rgba(0,0,0,.35)", border: "2px solid rgba(250,204,21,.6)", padding: "28px 20px", textAlign: "center" }}>
+            <div style={{ color: "#ffd97a", fontWeight: 700, marginBottom: 4 }}>Mã phòng (giữa bàn)</div>
+            <div style={{ fontSize: 44, fontWeight: 900, letterSpacing: 6, color: "#facc15" }}>{code}</div>
+            <button className="bg-yellow-400 text-black font-bold px-5 py-2 rounded-full mt-3" onClick={() => { try { navigator.clipboard?.writeText(code); } catch { /* bỏ qua */ } }}>Sao chép mã phòng</button>
+            <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13, marginTop: 10 }}>Gửi mã này cho bạn bè để họ vào phòng. Phòng này không có bot.</p>
+          </div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+            {seats.map((pl, i) => pl ? (
+              <div key={pl.id} style={{ textAlign: "center", width: 110 }}>
+                {pl.avatar ? <img src={pl.avatar} alt={pl.name} className="w-[64px] h-[64px] rounded-full mx-auto" /> : <div className="tan-avatar" style={{ margin: "0 auto", width: 64, height: 64, fontSize: 24 }}>{pl.name.charAt(0).toUpperCase()}</div>}
+                <div style={{ fontWeight: 700, marginTop: 6 }}>{pl.name}{pl.isHost ? " (chủ phòng)" : ""}</div>
+                <div style={{ fontSize: 12, color: pl.online ? "#4ade80" : "#f87171" }}>{pl.online ? "Đang online" : "Mất kết nối"}</div>
+                {pl.id === s.onlineMyLobbyId ? (
+                  <button className={pl.ready ? "bg-green-500 text-white font-bold px-4 py-1 rounded-full mt-2" : "bg-white text-black font-bold px-4 py-1 rounded-full mt-2"} onClick={() => s.onlineReady(!pl.ready)}>{pl.ready ? "Đã sẵn sàng ✓" : "Sẵn sàng"}</button>
+                ) : (
+                  <div style={{ marginTop: 8, fontSize: 13, color: pl.ready ? "#4ade80" : "rgba(255,255,255,.6)" }}>{pl.ready ? "Đã sẵn sàng ✓" : "Chưa sẵn sàng"}</div>
+                )}
+              </div>
+            ) : (
+              <div key={i} style={{ textAlign: "center", width: 110, opacity: 0.7 }}>
+                <div className="tan-avatar" style={{ margin: "0 auto", background: "rgba(0,0,0,.4)", color: "rgba(255,255,255,.5)", width: 64, height: 64, fontSize: 24 }}>?</div>
+                <div style={{ marginTop: 6 }}>Chờ người chơi…</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,.6)" }}>Chưa vào</div>
               </div>
             ))}
           </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "10px 20px 12px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div className="tan-avatar">{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>
-            <div><b>{s.playerName || "Bạn"}</b><div style={{ color: "#ffd97a", fontWeight: 700 }}>6,417,098 điểm</div></div>
-          </div>
-          <div className="tan-tabs">
-            {Object.keys(tierNames).map((t) => (
-              <button key={t} className={`tan-tab ${tier === t ? "active" : ""}`} onClick={() => setTier(t)}>{tierNames[t]}</button>
-            ))}
+          <div style={{ textAlign: "center" }}>
+            <button className="bg-yellow-400 text-black font-bold px-8 py-3 rounded-full text-lg disabled:opacity-40" disabled={!canStart} onClick={() => s.onlineStart()}>Bắt đầu</button>
+            <p style={{ color: "#ffd97a", fontSize: 13, marginTop: 8 }}>Trò chơi bắt đầu khi đủ ít nhất 2 người, tất cả đã ấn Sẵn sàng và chủ phòng ấn Bắt đầu. Khi đó sẽ đếm 1-2-3-Bắt đầu, phát bài lần lượt rồi mới chọn chất chủ.</p>
+            {s.onlineError && <p style={{ color: "#f87171", fontSize: 13, marginTop: 4 }}>{s.onlineError}</p>}
+            <p style={{ color: "rgba(255,255,255,.6)", fontSize: 13, marginTop: 4 }}>Kết nối: {s.onlineWsStatus} · Phòng thật qua WebSocket, không có bot. Muốn chơi ngay một mình, bấm Chơi với bot.</p>
+            <button className="tan-pill" style={{ background: "#7c3aed", color: "#fff", marginTop: 12 }} onClick={startBotGame}>Chơi với bot</button>
           </div>
         </div>
-        <p style={{ textAlign: "center", color: "rgba(255,255,255,.6)", fontSize: 13, paddingBottom: 8 }}>Xu trong Tấn chỉ là điểm thưởng, không nạp/rút hay đổi tiền thật. Vào phòng hiện chơi với bot lấp ghế trống.</p>
       </div>
     );
   }
@@ -285,6 +326,21 @@ export default function App() {
     return (
       <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
         {homeTop}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "8px 0" }}>
+          {s.googleUser ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {s.googleUser.avatar && <img src={s.googleUser.avatar} alt="" className="w-9 h-9 rounded-full" />}
+              <span style={{ fontWeight: 700 }}>Đã đăng nhập Google: {s.googleUser.name}</span>
+              <button className="bg-white text-black font-bold px-3 py-1 rounded-full text-sm" onClick={() => { try { localStorage.removeItem("tanloc-session"); } catch { /* bỏ qua */ } s.setGoogleUser(null); }}>Đăng xuất</button>
+            </div>
+          ) : (
+            <>
+              <div id="google-login-btn" />
+              {!s.googleClientId && <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13, textAlign: "center", padding: "0 16px" }}>Đăng nhập Google chưa cấu hình (cần Client ID trên Render) - bạn vẫn chơi khách bằng tên ở trên, hoặc chơi với bot ngay.</p>}
+              {googleError && <p style={{ color: "#f87171", fontSize: 13 }}>{googleError}</p>}
+            </>
+          )}
+        </div>
         <div className="tan-center">
           <button className="tan-play" onClick={s.goToRooms}>
             <div className="tan-fan">
@@ -301,15 +357,22 @@ export default function App() {
             <h2>CHƠI VỚI BẠN</h2>
           </button>
         </div>
-        <div style={{ textAlign: "center", paddingBottom: 8 }}>
-          <label style={{ marginRight: 16 }}>Số người chơi
-            <select className="text-black ml-2 px-3 py-2 rounded" value={s.playerCount} onChange={(e) => s.setPlayerCount(Number(e.target.value))}>
-              <option value={2}>2 người</option><option value={3}>3 người</option><option value={4}>4 người</option>
-            </select>
-          </label>
-         
-        </div>
         {homeBottom}
+        {settingsOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="w-80 max-w-[92vw] bg-red-900 border border-yellow-400 rounded-2xl p-5">
+              <div className="flex justify-between items-center mb-3"><h2 className="font-bold text-lg flex items-center gap-2"><Settings size={18} /> Cài đặt âm thanh</h2><button onClick={() => setSettingsOpen(false)} aria-label="Đóng cài đặt"><X size={18} /></button></div>
+              <label className="flex items-center gap-2 mb-3 cursor-pointer"><input type="checkbox" checked={soundOn} onChange={(e) => { setSoundOn(e.target.checked); setSoundEnabled(e.target.checked); }} /> Bật âm thanh</label>
+              <label className="block text-sm mb-1">Âm lượng: {soundVol}%</label>
+              <input className="w-full mb-3" type="range" min={0} max={100} value={soundVol} onChange={(e) => { const v = Number(e.target.value); setSoundVol(v); setSoundVolume(v / 100); }} />
+              <div className="flex gap-2">
+                <button className="flex-1 bg-yellow-400 text-black font-bold px-3 py-2 rounded-full text-sm" onClick={() => playDealSound()}><span className="flex items-center justify-center gap-1"><Volume2 size={16} /> Thử phát bài</span></button>
+                <button className="flex-1 bg-yellow-400 text-black font-bold px-3 py-2 rounded-full text-sm" onClick={() => playCardSound()}><span className="flex items-center justify-center gap-1"><Volume2 size={16} /> Thử ra lá</span></button>
+              </div>
+            </div>
+          </div>
+        )}
+
                 {helpOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setHelpOpen(false)}>
             <div className="w-full max-w-lg max-h-[85vh] overflow-auto bg-red-900 border border-yellow-400 rounded-2xl p-5 text-sm leading-relaxed" onClick={(e) => e.stopPropagation()}>
@@ -318,10 +381,11 @@ export default function App() {
               <p className="mt-2"><b>Chia bài:</b> 2–4 người, mỗi người 8 lá, bộ Tây 52 lá không Joker. Lá cuối nọc lật ngửa làm chất chủ (ví dụ Cơ là chủ thì Cơ mạnh nhất).</p>
               <p className="mt-2"><b>Người tấn đầu:</b> người có lá chủ nhỏ nhất. Sau đó tấn theo vòng ngược chiều kim đồng hồ: Mình → Bot 3 (phải) → Bot 1 (trên) → Bot 2 (trái) → Mình; người vừa đỡ xong sẽ tấn tiếp, người ngồi kế tiếp sau người tấn là người đỡ.</p>
               <p className="mt-2"><b>Tấn:</b> tấn 1 lá đầu, sau đó chỉ được thêm lá cùng hạng với lá đã có trên bàn. Một đợt tối đa 6 lá, và không vượt số lá người đỡ có lúc đợt bắt đầu.</p>
-              <p className="mt-2"><b>Đỡ:</b> đỡ bằng lá cùng chất cao hơn, hoặc bằng lá chủ nếu lá tấn không phải chủ. Lá tấn là chủ thì chỉ đỡ bằng lá chủ cao hơn. Người đỡ có 30 giây, quanh avatar có vòng sáng đếm ngược, hết giờ tự lên bài.</p><p className="mt-2"><b>Tấn cũng tính giờ:</b> người tấn có 30 giây, quanh avatar có vòng vàng đếm ngược, tấn lá mới thì reset lại 30 giây. Hết giờ tấn mà chưa đánh thì tự đánh lá yếu nhất có thể đánh được.</p>
+              <p className="mt-2"><b>Đỡ:</b> đỡ bằng lá cùng chất cao hơn, hoặc bằng lá chủ nếu lá tấn không phải chủ. Lá tấn là chủ thì chỉ đỡ bằng lá chủ cao hơn. Người đỡ có 30 giây, quanh avatar có vòng sáng đếm ngược, hết giờ tự lên bài.</p><p className="mt-2"><b>Chơi với bot / chơi với bạn:</b> Chơi với bot là chơi ngay với bot lấp ghế. Chơi với bạn là chơi với người thật, không có bot: vào phòng chờ, mã phòng hiện giữa bàn, mọi người ấn Sẵn sàng rồi chủ phòng ấn Bắt đầu, sau đó đếm 1-2-3-Bắt đầu và phát bài lần lượt rồi mới chọn chất chủ. Người về nhất (đánh hết bài đầu tiên) được vương miện số 1 trên avatar, và khi đã xong ván thì không còn nút chọn nữa vì không cần đấu nữa.</p>
+              <p className="mt-2"><b>Tấn cũng tính giờ:</b> người tấn có 30 giây, quanh avatar có vòng vàng đếm ngược, tấn lá mới thì reset lại 30 giây. Hết giờ tấn mà chưa đánh thì tự đánh lá yếu nhất có thể đánh được.</p>
               <p className="mt-2"><b>Lên bài:</b> không đỡ được (hoặc muốn lên) thì bấm Lên bài, nhận hết bài trên bàn, mất lượt tấn tiếp theo.</p>
               <p className="mt-2"><b>Bốc bài:</b> đỡ thành công và kết thúc đợt thì mọi người bốc từng lá cho đủ 8 lá, theo thứ tự người tấn, người thêm, người đỡ cuối. Hết nọc thì ai hết bài trước là xong, người còn bài cuối cùng thua.</p>
-              <p className="mt-2"><b>Nút trong ván:</b> Kết thúc đợt (người tấn chính, khi mọi lá đã được đỡ), Lên bài, Bốc bài (khi tới lượt bốc), Xếp bài (theo chất hoặc theo hạng, từ A xuống 2).</p>
+              <p className="mt-2"><b>Nút trong ván:</b> Kết thúc đợt (người tấn chính, khi mọi lá đã được đỡ), Lên bài, Bốc bài (khi tới lượt bốc), Sắp xếp (bên phải tay bài, theo chất hoặc theo hạng, từ A xuống 2).</p>
               <p className="mt-2 text-yellow-200">Lưu ý: điểm/xu trong game chỉ là điểm thưởng, không nạp/rút hay đổi tiền thật. Bản này không còn chức năng chuyển tấn.</p>
               <button className="bg-yellow-400 text-black font-bold px-6 py-2 rounded-full mt-4" onClick={() => setHelpOpen(false)}>Đã hiểu</button>
             </div>
@@ -332,9 +396,9 @@ export default function App() {
   }
 
   let hint = "Đang chờ bot đánh…";
-  if (game.phase === "FINISHED") hint = game.loserId === HUMAN_ID ? "Bạn là người thua ván này." : `${game.players.find((p) => p.id === game.loserId)?.name} thua ván này.`;
+  if (game.phase === "FINISHED") hint = game.loserId === myId ? "Bạn là người thua ván này." : `${game.players.find((p) => p.id === game.loserId)?.name} thua ván này.`;
   else if (iAmDefender && undefended.length) hint = "Tới lượt bạn đỡ: bấm lá bài để đỡ, hoặc bấm Lên bài bất cứ lúc nào (kể cả khi đỡ được).";
-  else if (game.phase === "DRAWING" && game.pendingDraw[0] === HUMAN_ID) hint = "Tới lượt bạn bốc bài: bấm Bốc bài để bốc từng lá cho đủ 8 lá.";
+  else if (game.phase === "DRAWING" && game.pendingDraw[0] === myId) hint = "Tới lượt bạn bốc bài: bấm Bốc bài để bốc từng lá cho đủ 8 lá.";
   else if (game.phase === "DRAWING") hint = "Đang bốc bài: chờ người khác bốc đủ 8 lá…";
   else if (iAmAttacker && game.table.length === 0) hint = "Tới lượt bạn tấn: bấm 1 lá bài để đánh ra.";
   else if (iAmAttacker && allDefended) hint = "Bạn có thể thêm bài cùng hạng, hoặc bấm Kết thúc đợt.";
@@ -364,7 +428,7 @@ export default function App() {
       )}
       {/* Lá vừa đánh bay từ tay người đánh lên giữa bàn. */}
       {s.flying && (
-        <div key={s.flying.key} className={`flying-card ${s.flying.by === HUMAN_ID ? "flying-human" : "flying-bot"}`}>
+        <div key={s.flying.key} className={`flying-card ${s.flying.by === myId ? "flying-human" : "flying-bot"}`}>
           <CardView card={parseCard(s.flying.cardId)} />
         </div>
       )}
@@ -381,12 +445,20 @@ export default function App() {
           Người đỡ luôn là người ngồi kế tiếp sau người tấn theo vòng này. */}
       <div className="flex-1 min-h-0 w-full relative flex flex-col">
         <TableCanvas game={game} />
-        {game.players.filter((p) => p.id !== HUMAN_ID).map((p, idx) => {
-          const pos = p.name === "Bot 3" ? "absolute right-2 top-1/2 -translate-y-1/2" : p.name === "Bot 2" ? "absolute left-2 top-1/2 -translate-y-1/2" : "absolute top-2 left-1/2 -translate-x-1/2";
+        {(() => {
+          const myIdx = game.players.findIndex((pl) => pl.id === myId);
+          const opps = s.onlineMode
+            ? game.players.filter((_, i) => i !== myIdx).map((_, k) => game.players[(myIdx + 1 + k) % game.players.length])
+            : game.players.filter((pl) => pl.id !== myId);
+          return opps.map((p, idx) => {
+          const pos = s.onlineMode
+            ? (game.players.length === 2 ? "absolute top-2 left-1/2 -translate-x-1/2" : game.players.length === 3 ? (idx === 0 ? "absolute right-2 top-1/2 -translate-y-1/2" : "absolute left-2 top-1/2 -translate-y-1/2") : (idx === 0 ? "absolute right-2 top-1/2 -translate-y-1/2" : idx === 1 ? "absolute top-2 left-1/2 -translate-x-1/2" : "absolute left-2 top-1/2 -translate-y-1/2"))
+            : (p.name === "Bot 3" ? "absolute right-2 top-1/2 -translate-y-1/2" : p.name === "Bot 2" ? "absolute left-2 top-1/2 -translate-y-1/2" : "absolute top-2 left-1/2 -translate-x-1/2");
           return (
             <div key={p.id} className={`${pos} z-20 flex items-center gap-2 bg-black/55 px-2 py-1 rounded-xl text-sm ${p.id === game.attackerId || p.id === game.defenderId ? "outline outline-yellow-400" : ""}`}>
               <div className="relative shrink-0" style={p.id === game.defenderId && isDefending ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
-                <img src={`/durak/ui/avatar_${(p.name.replace("Bot ", "") || "1")}.png`} alt={p.name} className="w-[100px] h-[100px] rounded-full block" />
+                {s.onlineMode && s.onlineRoom?.players.find((x) => x.name === p.name)?.avatar ? <img src={s.onlineRoom!.players.find((x) => x.name === p.name)!.avatar!} alt={p.name} className="w-[100px] h-[100px] rounded-full block" /> : s.onlineMode ? <div className="w-[100px] h-[100px] rounded-full bg-red-900 flex items-center justify-center text-3xl font-black">{p.name.charAt(0).toUpperCase()}</div> : <img src={`/durak/ui/avatar_${(p.name.replace("Bot ", "") || "1")}.png`} alt={p.name} className="w-[100px] h-[100px] rounded-full block" />}
+                {p.finished && game.finishOrder[0] === p.id && <span className="absolute -top-2 -right-2 bg-yellow-400 text-black font-black text-xs px-2 py-1 rounded-full border-2 border-white shadow flex items-center gap-1"><Crown size={14} /> 1</span>}
                 {p.id === game.defenderId && isDefending && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-400 text-black font-black text-[11px] px-1.5 rounded-full border border-white">{defendSeconds}s</span>}
               </div>
               <div className="relative shrink-0">
@@ -396,14 +468,14 @@ export default function App() {
               <span className="whitespace-nowrap flex flex-col leading-tight"><b>{p.name}</b><span className="flex items-center gap-1">{p.id === game.attackerId ? <Swords size={15} /> : null} {p.id === game.defenderId ? <Shield size={15} /> : null} {p.finished ? <Check size={15} /> : null} {p.hand.length} lá</span></span>
             </div>
           );
-        })}
+        }); })()}
         {/* Hiệu ứng bốc bài: lá bay từ nọc giữa bàn tới góc người bốc */}
         {s.drawFlying && (() => {
-          const opps = game.players.filter((p) => p.id !== HUMAN_ID);
-          const corner = s.drawFlying.toId === HUMAN_ID ? "bottom" : (() => { const nm = opps.find((p) => p.id === s.drawFlying!.toId)?.name; return nm === "Bot 3" ? "right" : nm === "Bot 2" ? "left" : "top"; })();
+          const opps = game.players.filter((p) => p.id !== myId);
+          const corner = s.drawFlying.toId === myId ? "bottom" : (() => { const nm = opps.find((p) => p.id === s.drawFlying!.toId)?.name; return nm === "Bot 3" ? "right" : nm === "Bot 2" ? "left" : "top"; })();
           return (
             <div key={s.drawFlying.key} className={`flying-draw flying-draw-${corner}`}>
-              {s.drawFlying.toId === HUMAN_ID ? <CardView card={parseCard(s.drawFlying.cardId)} /> : <img src="/durak/cards/back.png" alt="" className="w-[72px] h-[100px] rounded-[10px]" />}
+              {s.drawFlying.toId === myId ? <CardView card={parseCard(s.drawFlying.cardId)} /> : <img src="/durak/cards/back.png" alt="" className="w-[72px] h-[100px] rounded-[10px]" />}
             </div>
           );
         })()}
@@ -424,13 +496,12 @@ export default function App() {
           </div>
         );
       })()}
-      <div className="text-center space-x-2 py-2 shrink-0 relative">
+      {!me?.finished && (<div className="text-center space-x-2 py-2 shrink-0 relative">
         {s.followWindow && <button className="bg-yellow-400 text-black font-bold px-4 py-2 rounded-full" onClick={() => s.passFollow()}>Không theo</button>}
-        <button className="bg-white text-black font-semibold px-4 py-2 rounded-full" title="Bấm là tự xếp, bấm lại đổi kiểu" onClick={() => { const next = lastSort === "suit" ? "rank" : "suit"; s.sortHand(next); setLastSort(next); }}><span className="flex items-center gap-1"><ArrowDownWideNarrow size={16} /> Xếp bài</span></button>
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmAttacker && allDefended)} onClick={s.finishAttackAction}>Kết thúc đợt</button>
         <button className="bg-red-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmDefender && game.table.length > 0)} onClick={s.takeCards}>Lên bài</button>
-        <button className="bg-green-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(game.phase === "DRAWING" && game.pendingDraw[0] === HUMAN_ID && !s.drawing)} onClick={s.drawCards}>Bốc bài</button>
-      </div>
+        <button className="bg-green-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(game.phase === "DRAWING" && game.pendingDraw[0] === myId && !s.drawing)} onClick={s.drawCards}>Bốc bài</button>
+      </div>)}
       <div className="flex justify-center items-center flex-wrap shrink-0 px-2 pb-2 gap-2">
         <div className="relative shrink-0" style={(iAmDefender && isDefending) ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : myAttackTurn ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${(seconds / 30) * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
           {/* Bong bóng chat của mình: hiện trên avatar, không cần mở hội thoại. */}
@@ -444,14 +515,19 @@ export default function App() {
           {s.followWindow && (
             <span className="absolute -top-8 left-1/2 -translate-x-1/2 z-50 bg-yellow-400 text-black font-black text-xs px-3 py-1 rounded-full border-2 border-white shadow whitespace-nowrap">Theo: {followSeconds}s</span>
           )}
-          <div className="tan-avatar" style={{ width: 100, height: 100, fontSize: 36 }}>{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>
+          {s.googleUser?.avatar ? <img src={s.googleUser.avatar} alt="" className="w-[100px] h-[100px] rounded-full block" /> : <div className="tan-avatar" style={{ width: 100, height: 100, fontSize: 36 }}>{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>}
+          {me?.finished && game.finishOrder[0] === myId && <span className="absolute -top-3 -right-3 z-50 bg-yellow-400 text-black font-black text-xs px-2 py-1 rounded-full border-2 border-white shadow flex items-center gap-1"><Crown size={14} /> 1</span>}
+          {me?.finished && game.finishOrder[0] !== myId && <span className="absolute -top-3 -right-3 z-50 bg-white text-black font-black text-xs px-2 py-1 rounded-full border-2 border-white shadow">{game.finishOrder.indexOf(myId) + 1}</span>}
           {iAmDefender && isDefending && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-400 text-black font-black text-[11px] px-1.5 rounded-full border border-white">{defendSeconds}s</span>}
         </div>
         {me?.hand.map((c, i) => (
           <div key={c.id} className={i === 0 ? "" : "-ml-6"}>
-            <CardView card={c} selected={s.selected === c.id} highlight={!!game && game.defenderId !== HUMAN_ID && game.table.length > 0 && canAttackCard(game, HUMAN_ID, c)} onClick={() => s.playCard(c.id)} />
+            <CardView card={c} selected={s.selected === c.id} highlight={!!game && game.defenderId !== myId && game.table.length > 0 && canAttackCard(game, myId, c)} onClick={() => s.playCard(c.id)} />
           </div>
         ))}
+        {!me?.finished && (
+          <button className="bg-white text-black font-semibold px-3 py-2 rounded-full shrink-0 ml-2" title="Bấm là tự xếp, bấm lại đổi kiểu" onClick={() => { const next = lastSort === "suit" ? "rank" : "suit"; s.sortHand(next); setLastSort(next); }}>Sắp xếp</button>
+        )}
       </div>
       <p className="text-center text-yellow-200 text-sm pb-2 shrink-0">{hint}</p>
       </div>
@@ -504,10 +580,62 @@ export default function App() {
           </div>
         </div>
       )}
+      {/* Về nhất: hiệu ứng lớn, không chặn bấm, tự ẩn sau 4 giây; vương miện số 1 vẫn ở trên avatar. */}
+      {firstEffect && (
+        <div className="absolute inset-0 z-[70] flex items-center justify-center pointer-events-none">
+          <div className="text-center">
+            <div className="trump-ace-rays" style={{ width: 220, height: 220, margin: "0 auto" }} />
+            <div style={{ marginTop: -180 }}><Crown size={72} className="mx-auto text-yellow-400" /></div>
+            <div className="font-black text-4xl text-yellow-300 mt-2" style={{ textShadow: "0 2px 12px rgba(0,0,0,.8)" }}>BẠN VỀ NHẤT!</div>
+            <div className="text-white font-semibold mt-1">Bạn đã đánh hết bài đầu tiên!</div>
+          </div>
+        </div>
+      )}
+      {/* Bắt đầu ván: đếm 1-2-3-Bắt đầu, phát bài lần lượt từng người, xong mới chọn chất chủ. */}
+      {starting && (
+        <div className="absolute inset-0 z-[65] flex flex-col items-center justify-center bg-[#1b3a1b]">
+          {starting.step === "count" && <div className="font-black text-8xl text-yellow-300">{starting.count}</div>}
+          {starting.step === "count" && <div className="text-white font-semibold mt-2">Chuẩn bị phát bài…</div>}
+          {starting.step === "deal" && (
+            <div className="text-center">
+              <div className="font-black text-3xl text-yellow-300 mb-4">Đang phát bài…</div>
+              <div className="flex gap-6 justify-center">
+                {["Trên", "Trái", "Phải", "Bạn"].map((seat, si) => {
+                  const countForSeat = starting.deal >= si ? Math.min(8, Math.ceil((starting.deal - si + 1) / 4)) : 0;
+                  return (
+                    <div key={seat} className="text-center">
+                      <div className="flex -space-x-3 justify-center mb-2 h-[50px]">
+                        {Array.from({ length: countForSeat }, (_, i) => <img key={i} src="/durak/cards/back.png" alt="" className="w-[36px] h-[50px] rounded" />)}
+                      </div>
+                      <div className="text-sm font-semibold">{seat}: {countForSeat}/8</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {starting.step === "trump" && game && (
+            <div className="text-center">
+              <div className="font-black text-4xl text-yellow-300">BẮT ĐẦU!</div>
+              <div className="flex items-center justify-center gap-2 mt-4 text-xl font-bold">Chất chủ: {SUIT_NAME[game.trumpSuit]} <img src={`/durak/ui/trump_marker_${trumpMarker[game.trumpSuit]}.png`} alt={SUIT_NAME[game.trumpSuit]} className="w-10 h-10" /></div>
+            </div>
+          )}
+        </div>
+      )}
+      {/* Lên bài: các lá vừa lấy bay vào tay mình. */}
+      {s.takeAnimCards && (
+        <div className="absolute inset-0 z-40 pointer-events-none overflow-hidden">
+          {s.takeAnimCards.map((cid, i) => (
+            <div key={`${cid}-${i}`} className="take-fly" style={{ animationDelay: `${i * 150}ms` }}>
+              <CardView card={parseCard(cid)} />
+            </div>
+          ))}
+        </div>
+      )}
       {game.phase === "FINISHED" && (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60">
           <div className="max-w-xl mx-4 bg-red-900 border border-yellow-400 rounded-2xl p-6 text-center">
-            <img src={game.loserId === HUMAN_ID ? "/durak/ui/you_lose.png" : "/durak/ui/you_won.png"} alt="Kết quả" className="w-48 mx-auto mb-3" />
+            <img src={game.loserId === myId ? "/durak/ui/you_lose.png" : "/durak/ui/you_won.png"} alt="Kết quả" className="w-48 mx-auto mb-3" />
             <h2 className="text-xl font-bold">Kết quả</h2>
             <p>Người thua: <b>{game.players.find((p) => p.id === game.loserId)?.name}</b></p>
             <p>Thứ tự hoàn thành: {game.finishOrder.map((id) => game.players.find((p) => p.id === id)?.name).join(" → ") || "—"}</p>
