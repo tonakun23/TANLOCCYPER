@@ -103,6 +103,43 @@
     font-weight: 900; font-size: clamp(11px, 2.4vh, 16px); line-height: 1.15; box-shadow: 0 6px 14px rgba(0,0,0,.45); }
   .choose-table:active { transform: scale(.93); }
 
+  /* ---------- Màn chọn phòng (ấn CHƠI NGAY) ---------- */
+  .view { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+  .view.hidden { display: none; }
+  .rooms-top { display: flex; align-items: center; gap: min(2vw, 16px); padding: min(2vh, 12px) min(2vw, 20px) 0; position: relative; z-index: 2; }
+  .rooms-top .center-btns { margin: 0 auto; display: flex; gap: min(1.5vw, 12px); }
+  .pill-btn { padding: min(1.6vh, 12px) min(3vw, 26px); border-radius: 10px; font-weight: 900;
+    font-size: clamp(13px, 3vh, 20px); letter-spacing: .5px; box-shadow: 0 4px 10px rgba(0,0,0,.4); }
+  .pill-btn.orange { background: linear-gradient(180deg, #fcd34d, #f59e0b); color: #451a03; }
+  .pill-btn.green { background: linear-gradient(180deg, #4ade80, #16a34a); color: #052e16; }
+  .pill-btn:active { transform: scale(.95); }
+  .room-table { position: relative; z-index: 1; margin: min(2vh, 14px) min(2vw, 20px) 0; flex: 1; min-height: 0;
+    border: 1.5px solid rgba(251,191,36,.6); background: rgba(0,0,0,.25); overflow: hidden; }
+  .room-head, .room-row { display: grid; grid-template-columns: 1.1fr 1fr 1.4fr 1fr 1.1fr; align-items: center;
+    text-align: center; }
+  .room-head { background: rgba(153,27,27,.85); border-bottom: 1.5px solid rgba(251,191,36,.6);
+    font-size: clamp(12px, 2.8vh, 19px); color: rgba(255,255,255,.85); padding: min(1.6vh, 12px) 0; }
+  .room-head span:first-child { text-align: left; padding-left: min(2vw, 16px); }
+  .room-list { overflow-y: auto; height: calc(100% - 46px); }
+  .room-row { border-bottom: 1.5px solid rgba(239,68,68,.5); padding: min(1.4vh, 10px) 0; }
+  .room-id { justify-self: start; margin-left: min(1vw, 8px); padding: min(1.2vh, 9px) min(2vw, 16px) min(1.2vh, 9px) min(2vw, 16px);
+    background: linear-gradient(90deg, rgba(220,38,38,.7), rgba(127,29,29,.4)); clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%);
+    font-weight: 800; font-size: clamp(13px, 3vh, 20px); }
+  .bet, .min { color: #facc15; font-weight: 900; font-size: clamp(14px, 3.2vh, 22px); }
+  .hearts { font-size: clamp(16px, 3.6vh, 24px); letter-spacing: 4px; }
+  .hearts .on { color: #ef4444; } .hearts .off { color: rgba(0,0,0,.55); text-shadow: 0 0 0 rgba(255,255,255,.2); }
+  .join-btn { justify-self: center; background: #2f9e8f; color: #fff; padding: min(1.4vh, 10px) min(2.5vw, 22px);
+    border-radius: 8px; font-weight: 700; font-size: clamp(12px, 2.8vh, 18px); box-shadow: 0 3px 8px rgba(0,0,0,.4); }
+  .join-btn:active { transform: scale(.94); }
+  .rooms-bottom { display: flex; align-items: center; justify-content: space-between; gap: min(2vw, 16px);
+    padding: min(1.5vh, 10px) min(2vw, 20px) min(2vh, 12px); position: relative; z-index: 2; }
+  .tabs { display: flex; }
+  .tab { padding: min(1.6vh, 12px) min(2.5vw, 22px); border: 1.5px solid rgba(239,68,68,.7); background: rgba(0,0,0,.35);
+    font-weight: 700; font-size: clamp(12px, 2.8vh, 18px); margin-left: -1.5px; }
+  .tab:first-child { margin-left: 0; }
+  .tab.active { background: #dc2626; }
+  .tab:active { filter: brightness(1.2); }
+
   .toast { position: absolute; left: 50%; top: 16%; transform: translateX(-50%); z-index: 10; background: rgba(0,0,0,.85);
     border: 1.5px solid #facc15; color: #fef3c7; padding: 10px 20px; border-radius: 99px; font-weight: 700;
     font-size: clamp(13px, 2.8vh, 18px); opacity: 0; pointer-events: none; transition: opacity .25s; white-space: nowrap; }
@@ -134,6 +171,7 @@
     <p>Màn hình này chỉ thiết kế cho điện thoại xoay ngang.<br>Xoay máy sang ngang là vào game ngay.</p>
   </div>
 
+  <div id="home-view" class="view">
   <header class="topbar">
     <div class="side-strip">
       <button class="icon-btn" aria-label="Đóng" onclick="toast('Đã đóng')">✕</button>
@@ -158,7 +196,7 @@
   </header>
 
   <main class="center">
-    <button class="play-card" onclick="toast('Đang vào bàn chơi ngay…')">
+    <button class="play-card" onclick="showRooms('tap-su')">
       <div class="fan">
         <div class="mini-card">A<span class="big">♠</span></div>
         <div class="mini-card red">A<span class="big">♦</span></div>
@@ -198,6 +236,39 @@
     </div>
   </footer>
 
+  </div>
+
+  <!-- Màn chọn phòng -->
+  <div id="rooms-view" class="view hidden">
+    <div class="rooms-top">
+      <div class="side-strip">
+        <button class="icon-btn" aria-label="Đóng" onclick="backHome()">✕</button>
+        <button class="icon-btn" aria-label="Menu" onclick="toast('Mở menu')">☰</button>
+      </div>
+      <div class="center-btns">
+        <button class="pill-btn orange" onclick="showRooms(currentTab)">CHƠI NGAY</button>
+        <button class="pill-btn green" onclick="createRoom()">TẠO PHÒNG</button>
+      </div>
+      <button class="icon-btn outline" aria-label="Về trang chủ" onclick="backHome()">⌂</button>
+    </div>
+    <div class="room-table">
+      <div class="room-head"><span>Phòng</span><span>Mức cược</span><span>Số người</span><span>Tối thiểu</span><span>Trạng thái</span></div>
+      <div class="room-list" id="room-list"></div>
+    </div>
+    <div class="rooms-bottom">
+      <div class="profile">
+        <div class="avatar">T</div>
+        <div class="who"><b>Tung</b><div class="level" style="margin-top:4px">6,417,098</div></div>
+      </div>
+      <div class="tabs" id="tabs">
+        <button class="tab active" data-tab="tap-su" onclick="showRooms('tap-su')">Tập Sự</button>
+        <button class="tab" data-tab="nghiep-du" onclick="showRooms('nghiep-du')">Nghiệp Dư</button>
+        <button class="tab" data-tab="chuyen-nghiep" onclick="showRooms('chuyen-nghiep')">Chuyên Nghiệp</button>
+        <button class="tab" data-tab="master" onclick="showRooms('master')">Master</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 </div>
 <script>
@@ -206,6 +277,66 @@
     const el = document.getElementById('toast');
     el.textContent = msg; el.classList.add('show');
     clearTimeout(t); t = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+  // Phòng theo từng tab mức cược. Số tim = số người đang trong phòng (tối đa 4).
+  const ROOMS = {
+    'tap-su': [
+      { id: 144459, bet: '20K', players: 3, min: '200K' },
+      { id: 143122, bet: '5K', players: 3, min: '50K' },
+      { id: 144530, bet: '5K', players: 3, min: '50K' },
+      { id: 144738, bet: '5K', players: 2, min: '50K' },
+      { id: 143314, bet: '5K', players: 3, min: '50K' },
+    ],
+    'nghiep-du': [
+      { id: 145201, bet: '100K', players: 4, min: '1M' },
+      { id: 145112, bet: '50K', players: 3, min: '500K' },
+      { id: 145330, bet: '100K', players: 2, min: '1M' },
+      { id: 145045, bet: '50K', players: 3, min: '500K' },
+      { id: 145278, bet: '50K', players: 4, min: '500K' },
+    ],
+    'chuyen-nghiep': [
+      { id: 146501, bet: '500K', players: 3, min: '5M' },
+      { id: 146212, bet: '200K', players: 4, min: '2M' },
+      { id: 146390, bet: '500K', players: 2, min: '5M' },
+      { id: 146105, bet: '200K', players: 3, min: '2M' },
+      { id: 146444, bet: '200K', players: 3, min: '2M' },
+    ],
+    'master': [
+      { id: 147901, bet: '1M', players: 3, min: '6M' },
+      { id: 147712, bet: '500K', players: 4, min: '5M' },
+      { id: 147830, bet: '1M', players: 2, min: '6M' },
+      { id: 147655, bet: '500K', players: 3, min: '5M' },
+      { id: 147514, bet: '1M', players: 3, min: '6M' },
+    ],
+  };
+  let currentTab = 'tap-su';
+  function renderRooms() {
+    const list = document.getElementById('room-list');
+    list.innerHTML = ROOMS[currentTab].map(r => `
+      <div class="room-row">
+        <span class="room-id">${r.id}</span>
+        <span class="bet">${r.bet}</span>
+        <span class="hearts">${[1,2,3,4].map(i => `<span class="${i <= r.players ? 'on' : 'off'}">♥</span>`).join('')}</span>
+        <span class="min">${r.min}</span>
+        <button class="join-btn" onclick="toast('Đang vào phòng ${r.id} — cược ${r.bet}…')">Tham gia</button>
+      </div>`).join('');
+    document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('active', b.dataset.tab === currentTab));
+  }
+  function showRooms(tab) {
+    currentTab = tab; renderRooms();
+    document.getElementById('home-view').classList.add('hidden');
+    document.getElementById('rooms-view').classList.remove('hidden');
+  }
+  function backHome() {
+    document.getElementById('rooms-view').classList.add('hidden');
+    document.getElementById('home-view').classList.remove('hidden');
+  }
+  function createRoom() {
+    const id = 148000 + Math.floor(Math.random() * 899);
+    const first = ROOMS[currentTab][0];
+    ROOMS[currentTab].unshift({ id, bet: first.bet, players: 1, min: first.min });
+    renderRooms();
+    toast('Đã tạo phòng ' + id + ' — đang chờ người vào…');
   }
 </script>
 </body>
