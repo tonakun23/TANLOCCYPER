@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useGameStore } from "./store";
-import { loadGoogleScript } from "./game/online";
 import { CardView } from "./components/CardView";
 import { TableCanvas } from "./components/TableCanvas";
 import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, canAttackCard, cardLabel } from "../../../packages/game-core/src/engine";
@@ -25,22 +24,7 @@ export default function App() {
   const [starting, setStarting] = useState<null | { step: "count" | "deal" | "trump"; count: number; deal: number }>(null);
   const [firstEffect, setFirstEffect] = useState(false);
   const [googleError, setGoogleError] = useState("");
-  useEffect(() => { void s.loadGoogleConfig(); }, []);
-  useEffect(() => {
-    if (!s.googleClientId) return;
-    let cancelled = false;
-    loadGoogleScript().then(() => {
-      if (cancelled) return;
-      const g = (window as unknown as { google?: { accounts: { id: { initialize: (o: Record<string, unknown>) => void; renderButton: (el: HTMLElement, o: Record<string, unknown>) => void } } } }).google;
-      if (!g) return;
-      g.accounts.id.initialize({ client_id: s.googleClientId, callback: async (resp: { credential: string }) => {
-        try { await s.googleLogin(resp.credential); setGoogleError(""); } catch (e) { setGoogleError((e as Error).message); }
-      } });
-      const el = document.getElementById("google-login-btn");
-      if (el) { el.innerHTML = ""; g.accounts.id.renderButton(el, { theme: "outline", size: "large", text: "signin_with" }); }
-    }).catch(() => setGoogleError("Không tải được nút Google, thử lại sau."));
-    return () => { cancelled = true; };
-  }, [s.googleClientId]);
+  useEffect(() => { void s.loadFirebaseConfig(); }, []);
   // Bong bóng chat trên avatar: hiện 6 giây rồi tự ẩn.
   useEffect(() => {
     if (!bubble) return;
@@ -328,17 +312,20 @@ export default function App() {
         {homeTop}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "8px 0" }}>
           {s.googleUser ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}>
               {s.googleUser.avatar && <img src={s.googleUser.avatar} alt="" className="w-9 h-9 rounded-full" />}
               <span style={{ fontWeight: 700 }}>Đã đăng nhập Google: {s.googleUser.name}</span>
-              <button className="bg-white text-black font-bold px-3 py-1 rounded-full text-sm" onClick={() => { try { localStorage.removeItem("tanloc-session"); } catch { /* bỏ qua */ } s.setGoogleUser(null); }}>Đăng xuất</button>
+              <button className="bg-white text-black font-bold px-3 py-1 rounded-full text-sm" onClick={async () => { try { localStorage.removeItem("tanloc-session"); } catch { /* bỏ qua */ } try { const m = await import("./game/firebase-auth"); await m.signOutFirebase(); } catch { /* bỏ qua */ } s.setGoogleUser(null); }}>Đăng xuất</button>
             </div>
           ) : (
-            <>
-              <div id="google-login-btn" />
-              {!s.googleClientId && <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13, textAlign: "center", padding: "0 16px" }}>Đăng nhập Google chưa cấu hình (cần Client ID trên Render) - bạn vẫn chơi khách bằng tên ở trên, hoặc chơi với bot ngay.</p>}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+              {s.firebaseConfig ? (
+                <button className="bg-white text-black font-bold px-4 py-2 rounded-full text-sm" onClick={async () => { try { await s.firebaseLogin(); setGoogleError(""); } catch (e) { setGoogleError((e as Error).message); } }}>Đăng nhập bằng Google</button>
+              ) : (
+                <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13, textAlign: "center", padding: "0 16px" }}>Đăng nhập Google chưa cấu hình (cần Firebase config trên Render) - bạn vẫn chơi khách bằng tên ở trên, hoặc chơi với bot ngay.</p>
+              )}
               {googleError && <p style={{ color: "#f87171", fontSize: 13 }}>{googleError}</p>}
-            </>
+            </div>
           )}
         </div>
         <div className="tan-center">

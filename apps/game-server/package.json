@@ -1,1 +1,1 @@
-{"description":"Tấn Online backend tối thiểu: REST server-authoritative, luật VN-8, phòng trong RAM","engines":{"node":">=20"},"name":"tanloccyper-game-server","private":true,"scripts":{"start":"node server.js"},"type":"module","version":"0.1.0"}
+{"description":"Tấn Online backend tối thiểu: REST server-authoritative, luật VN-8, phòng trong RAM","engines":{"node":">=20"},"name":"tanloccyper-game-server","private":true,"scripts":{"start":"node server.js"},"type":"module","version":"0.1.0","dependencies":{"ws":"^8.22.0"}}
