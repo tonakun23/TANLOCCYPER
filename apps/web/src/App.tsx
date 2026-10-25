@@ -178,7 +178,7 @@ export default function App() {
   if (s.screen === "create") {
     const pct = BET_LEVELS.length > 1 ? (betIdx / (BET_LEVELS.length - 1)) * 100 : 0;
     return (
-      <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
+      <div className="tan-home h-full w-full overflow-hidden text-white flex flex-col">
         <div className="tan-rooms-top">
           <h1 style={{ margin: "0 auto", fontSize: "clamp(20px, 5vh, 34px)", letterSpacing: 1, color: "#fef3c7" }}>TẠO PHÒNG CHƠI</h1>
           <button className="tan-icon" onClick={s.backToLobby} aria-label="Đóng"><X size={22} /></button>
@@ -221,7 +221,7 @@ export default function App() {
   }
   if (s.screen === "rooms") {
     return (
-      <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
+      <div className="tan-home h-full w-full overflow-hidden text-white flex flex-col">
         <div className="tan-rooms-top">
           <div style={{ margin: "0 auto", display: "flex", gap: 12 }}>
             <button className="tan-pill orange">CHƠI NGAY</button>
@@ -260,7 +260,7 @@ export default function App() {
   }
   if (s.screen === "lobby" || !game) {
     return (
-      <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
+      <div className="tan-home h-full w-full overflow-hidden text-white flex flex-col">
         {homeTop}
         <div className="tan-center">
           <button className="tan-play" onClick={s.goToRooms}>
@@ -318,8 +318,8 @@ export default function App() {
   else if (!iAmDefender && game.table.length > 0) hint = "Bạn có thể thêm bài cùng hạng.";
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[#1b3a1b] text-white flex flex-col relative">
-      <div className="flex flex-wrap gap-3 bg-black/50 px-3 py-2 font-semibold items-center justify-between shrink-0">
+    <div className="h-full w-full overflow-hidden bg-[#1b3a1b] text-white flex flex-col relative">
+      <div className="flex gap-3 bg-black/50 px-3 py-2 font-semibold items-center justify-between shrink-0">
         <span className="flex items-center gap-3">
           <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 flex items-center justify-center" title="Về sảnh" onClick={s.backToLobby}><X size={18} /></button>
           <span>{game.phase === "FINISHED" ? "Ván đã kết thúc" : `${game.players.find((p) => p.id === game.attackerId)?.name} tấn · ${game.players.find((p) => p.id === game.defenderId)?.name} đỡ`}</span>

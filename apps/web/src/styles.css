@@ -83,9 +83,7 @@ body { background: #1b3a1b; margin: 0; }
 .tan-tab { padding: min(1.6vh, 12px) min(2.5vw, 22px); border: 1.5px solid rgba(239,68,68,.7); background: rgba(0,0,0,.35); font-weight: 700; font-size: clamp(12px, 2.8vh, 18px); margin-left: -1.5px; cursor: pointer; color: #fff; }
 .tan-tab:first-child { margin-left: 0; }
 .tan-tab.active { background: #dc2626; }
-@media (orientation: portrait) {
-  .tan-home .tan-center { flex-direction: column; }
-}
+/* Đã bỏ responsive xếp dọc khi xoay dọc: khung desktop 1280x720 tự thu nhỏ, giao diện giữ nguyên hàng ngang. */
 
 /* Toast thông báo ngắn gọn: trượt xuống rồi đứng yên, App tự ẩn sau 3 giây. */
 .toast-notice { animation: toast-in .3s ease-out forwards; }
