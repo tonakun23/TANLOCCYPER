@@ -12,6 +12,42 @@ export function formatCoins(n) {
         return `${n / 1_000}K`;
     return n.toLocaleString("vi-VN");
 }
+// Hiển thị số dư dưới avatar trong ván (quy tắc Tony 2026-10-26):
+// dưới 100K hiện đủ (50.000), từ 100K viết gọn K, từ 1M viết gọn M,
+// từ 1B viết gọn B; M/B lẻ giữ tối đa 2 chữ số thập phân, bỏ số 0 thừa.
+export function formatBalanceShort(n) {
+    const neg = n < 0;
+    const v = Math.abs(n);
+    let out;
+    if (v < 100_000)
+        out = v.toLocaleString("vi-VN");
+    else if (v < 1_000_000)
+        out = `${Math.floor(v / 1_000)}K`;
+    else if (v < 1_000_000_000) {
+        const m = v / 1_000_000;
+        out = `${Number.isInteger(m) ? m : parseFloat(m.toFixed(2))}M`;
+    }
+    else {
+        const b = v / 1_000_000_000;
+        out = `${Number.isInteger(b) ? b : parseFloat(b.toFixed(2))}B`;
+    }
+    return neg ? `-${out}` : out;
+}
+// Tổng tiền tấn bị ôm đã cộng/trừ tới thời điểm hiện tại, tính từ takeLog
+// (dùng để hiện số dư live trong ván mà không cần chờ quyết toán cuối ván).
+// Mỗi lá tấn hợp lệ = 10% mức bàn cho người đánh lá đó, người ôm trừ theo
+// tổng số lá trên bàn — khớp đúng settleGame nên quyết toán cuối ván vẫn đúng.
+export function liveTakeTotals(level, takeLog) {
+    const totals = {};
+    const perCard = Math.round(level * ATTACK_RATE);
+    for (const take of takeLog) {
+        for (const [attackerId, count] of Object.entries(take.counts)) {
+            totals[attackerId] = (totals[attackerId] ?? 0) + perCard * count;
+        }
+        totals[take.defenderId] = (totals[take.defenderId] ?? 0) - perCard * take.cardCount;
+    }
+    return totals;
+}
 export function rankPct(playerCount) {
     if (playerCount === 2)
         return [100, -100];

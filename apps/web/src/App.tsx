@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGameStore } from "./store";
 import { CardView } from "./components/CardView";
 import { TableCanvas } from "./components/TableCanvas";
 import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, canAttackCard, cardLabel } from "../../../packages/game-core/src/engine";
-import { TABLE_LEVELS, formatCoins, minBalance } from "../../../packages/game-core/src/coins";
+import { TABLE_LEVELS, formatCoins, minBalance, formatBalanceShort, liveTakeTotals, START_BALANCE } from "../../../packages/game-core/src/coins";
 import { X, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, Crown, LogOut, Heart, Search, } from "lucide-react";
 import { playDealSound, playCardSound, playTrumpAceSound, setSoundEnabled, setSoundVolume } from "./game/sound";
 const ic = { size: 22, strokeWidth: 2 };
@@ -114,6 +114,42 @@ export default function App() {
     if (c.rank === 14 && c.suit === game.trumpSuit) playTrumpAceSound();
   }, [s.flying, game]);
   const me = game?.players.find((p) => p.id === myId);
+  // Xu live trong ván: số dư dưới avatar = số dư vào ván + tổng tiền tấn bị ôm
+  // tính từ takeLog (không chờ quyết toán cuối ván). Sau khi quyết toán thì lấy
+  // số dư chốt từ settlement cho người có trong bảng (bot không có số dư chốt).
+  const balanceFor = (p: { id: string; name: string }): number => {
+    if (!game) return START_BALANCE;
+    const row = s.settlement?.rows.find((r) => r.id === p.id);
+    if (s.settlement && row?.balanceAfter != null) return row.balanceAfter;
+    const level = s.onlineMode ? (s.onlineRoom?.level || 50_000) : s.tableLevel;
+    const totals = liveTakeTotals(level, game.takeLog || []);
+    const entry = s.onlineMode
+      ? (s.onlineRoom?.players.find((x) => x.name === p.name)?.balance ?? START_BALANCE)
+      : (p.id === myId ? s.balance : START_BALANCE);
+    return entry + (totals[p.id] ?? 0);
+  };
+  // Bay số tiền ăn/thua mỗi lần có lượt lên bài mới trong takeLog (hiện ~3.5 giây).
+  const [coinFloats, setCoinFloats] = useState<{ key: number; playerId: string; amount: number }[]>([]);
+  const takeLogRef = useRef<{ nonce: number; len: number }>({ nonce: -1, len: 0 });
+  useEffect(() => {
+    if (!game) return;
+    if (takeLogRef.current.nonce !== s.gameNonce) { takeLogRef.current = { nonce: s.gameNonce, len: game.takeLog?.length || 0 }; return; }
+    const len = game.takeLog?.length || 0;
+    if (len <= takeLogRef.current.len) return;
+    const level = s.onlineMode ? (s.onlineRoom?.level || 50_000) : s.tableLevel;
+    const floats: { key: number; playerId: string; amount: number }[] = [];
+    for (let i = takeLogRef.current.len; i < len; i++) {
+      const t = game.takeLog[i];
+      const totals = liveTakeTotals(level, [t]);
+      for (const [pid, amt] of Object.entries(totals)) if (amt !== 0) floats.push({ key: Date.now() + i * 100 + floats.length, playerId: pid, amount: amt });
+    }
+    takeLogRef.current.len = len;
+    if (!floats.length) return;
+    setCoinFloats((prev) => [...prev, ...floats]);
+    const id = setTimeout(() => setCoinFloats((prev) => prev.filter((f) => !floats.some((x) => x.key === f.key))), 3500);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.takeLog?.length, s.gameNonce]);
   const iAmDefender = game?.defenderId === myId;
   const iAmAttacker = game?.attackerId === myId;
   const undefended = game?.table.filter((x) => !x.defense) ?? [];
@@ -623,15 +659,18 @@ export default function App() {
           return (
             <div key={p.id} className={`${pos} z-20 flex items-center gap-2 bg-black/55 px-2 py-1 rounded-xl text-sm ${p.id === game.attackerId || p.id === game.defenderId ? "outline outline-yellow-400" : ""}`}>
               <div className="relative shrink-0" style={p.id === game.defenderId && isDefending ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
-                {s.onlineMode && s.onlineRoom?.players.find((x) => x.name === p.name)?.avatar ? <img src={s.onlineRoom!.players.find((x) => x.name === p.name)!.avatar!} alt={p.name} className="w-[100px] h-[100px] rounded-full block" /> : s.onlineMode ? <div className="w-[100px] h-[100px] rounded-full bg-red-900 flex items-center justify-center text-3xl font-black">{p.name.charAt(0).toUpperCase()}</div> : <img src={`/durak/ui/avatar_${(p.name.replace("Bot ", "") || "1")}.png`} alt={p.name} className="w-[100px] h-[100px] rounded-full block" />}
+                {s.onlineMode && s.onlineRoom?.players.find((x) => x.name === p.name)?.avatar ? <img src={s.onlineRoom!.players.find((x) => x.name === p.name)!.avatar!} alt={p.name} className="w-[100px] h-[100px] rounded-full block" style={game.phase === "FINISHED" && game.loserId === p.id ? { filter: "grayscale(1)", opacity: 0.55 } : undefined} /> : s.onlineMode ? <div className="w-[100px] h-[100px] rounded-full bg-red-900 flex items-center justify-center text-3xl font-black" style={game.phase === "FINISHED" && game.loserId === p.id ? { filter: "grayscale(1)", opacity: 0.55 } : undefined}>{p.name.charAt(0).toUpperCase()}</div> : <img src={`/durak/ui/avatar_${(p.name.replace("Bot ", "") || "1")}.png`} alt={p.name} className="w-[100px] h-[100px] rounded-full block" style={game.phase === "FINISHED" && game.loserId === p.id ? { filter: "grayscale(1)", opacity: 0.55 } : undefined} />}
                 {p.finished && game.finishOrder[0] === p.id && <span className="absolute -top-2 -right-2 bg-yellow-400 text-black font-black text-xs px-2 py-1 rounded-full border-2 border-white shadow flex items-center gap-1"><Crown size={14} /> 1</span>}
                 {p.id === game.defenderId && isDefending && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-400 text-black font-black text-[11px] px-1.5 rounded-full border border-white">{defendSeconds}s</span>}
+                {coinFloats.filter((f) => f.playerId === p.id).map((f) => (
+                  <span key={f.key} className={`coin-float ${f.amount >= 0 ? "text-yellow-300" : "text-red-400"}`}>{f.amount >= 0 ? "+" : "−"}{formatBalanceShort(Math.abs(f.amount))}</span>
+                ))}
               </div>
               <div className="relative shrink-0">
                 <img src="/durak/cards/back.png" alt="Bài úp" className="w-[72px] h-[100px] rounded" />
                 <span className="absolute inset-0 flex items-center justify-center"><span className="bg-yellow-400 text-black font-black text-lg w-9 h-9 rounded-full flex items-center justify-center border-2 border-white shadow">{p.hand.length}</span></span>
               </div>
-              <span className="whitespace-nowrap flex flex-col leading-tight"><b>{p.name}</b><span className="flex items-center gap-1">{p.id === game.attackerId ? <Swords size={15} /> : null} {p.id === game.defenderId ? <Shield size={15} /> : null} {p.finished ? <Check size={15} /> : null} {p.hand.length} lá</span></span>
+              <span className="whitespace-nowrap flex flex-col leading-tight"><b>{p.name}</b><span className="flex items-center gap-1">{p.id === game.attackerId ? <Swords size={15} /> : null} {p.id === game.defenderId ? <Shield size={15} /> : null} {p.finished ? <Check size={15} /> : null} {p.hand.length} lá</span><span className="flex items-center gap-1 text-yellow-300 font-black"><img src="/icons/coin.svg" alt="" style={{ width: 16, height: 16 }} />{formatBalanceShort(balanceFor(p))}</span></span>
             </div>
           );
         }); })()}
@@ -669,6 +708,7 @@ export default function App() {
         <button className="bg-green-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(game.phase === "DRAWING" && game.pendingDraw[0] === myId && !s.drawing)} onClick={s.drawCards}>Bốc bài</button>
       </div>)}
       <div className="flex justify-center items-center flex-wrap shrink-0 px-2 pb-2 gap-2">
+      <div className="flex flex-col items-center shrink-0">
         <div className="relative shrink-0" style={(iAmDefender && isDefending) ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : myAttackTurn ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${(seconds / 30) * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
           {/* Bong bóng chat của mình: hiện trên avatar, không cần mở hội thoại. */}
           {bubble && (
@@ -681,11 +721,16 @@ export default function App() {
           {s.followWindow && (
             <span className="absolute -top-8 left-1/2 -translate-x-1/2 z-50 bg-yellow-400 text-black font-black text-xs px-3 py-1 rounded-full border-2 border-white shadow whitespace-nowrap">Theo: {followSeconds}s</span>
           )}
-          {s.googleUser?.avatar ? <img src={s.googleUser.avatar} alt="" className="w-[100px] h-[100px] rounded-full block" /> : <div className="tan-avatar" style={{ width: 100, height: 100, fontSize: 36 }}>{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>}
+          {s.googleUser?.avatar ? <img src={s.googleUser.avatar} alt="" className="w-[100px] h-[100px] rounded-full block" style={game.phase === "FINISHED" && game.loserId === myId ? { filter: "grayscale(1)", opacity: 0.55 } : undefined} /> : <div className="tan-avatar" style={{ width: 100, height: 100, fontSize: 36, ...(game.phase === "FINISHED" && game.loserId === myId ? { filter: "grayscale(1)", opacity: 0.55 } : {}) }}>{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>}
           {me?.finished && game.finishOrder[0] === myId && <span className="absolute -top-3 -right-3 z-50 bg-yellow-400 text-black font-black text-xs px-2 py-1 rounded-full border-2 border-white shadow flex items-center gap-1"><Crown size={14} /> 1</span>}
           {me?.finished && game.finishOrder[0] !== myId && <span className="absolute -top-3 -right-3 z-50 bg-white text-black font-black text-xs px-2 py-1 rounded-full border-2 border-white shadow">{game.finishOrder.indexOf(myId) + 1}</span>}
           {iAmDefender && isDefending && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-400 text-black font-black text-[11px] px-1.5 rounded-full border border-white">{defendSeconds}s</span>}
+          {coinFloats.filter((f) => f.playerId === myId).map((f) => (
+            <span key={f.key} className={`coin-float ${f.amount >= 0 ? "text-yellow-300" : "text-red-400"}`}>{f.amount >= 0 ? "+" : "−"}{formatBalanceShort(Math.abs(f.amount))}</span>
+          ))}
         </div>
+        <span className="flex items-center gap-1 text-yellow-300 font-black text-sm mt-1"><img src="/icons/coin.svg" alt="" style={{ width: 16, height: 16 }} />{formatBalanceShort(balanceFor({ id: myId, name: me?.name || s.playerName }))}</span>
+      </div>
         {me?.hand.map((c, i) => (
           <div key={c.id} className={i === 0 ? "" : "-ml-6"}>
             <CardView card={c} selected={s.selected === c.id} highlight={!!game && game.defenderId !== myId && game.table.length > 0 && canAttackCard(game, myId, c)} onClick={() => s.playCard(c.id)} />

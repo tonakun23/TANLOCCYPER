@@ -47,6 +47,9 @@ body { background: #1b3a1b; margin: 0; }
 .flying-draw-right { animation-name: fly-draw-right; }
 .flying-draw-bottom { animation-name: fly-draw-bottom; }
 @keyframes fly-draw-top { from { transform: translate(0,0) scale(1); opacity: 1; } to { transform: translate(0,-38vh) scale(.55); opacity: 0; } }
+/* Số tiền bay lên trên avatar mỗi lần có lượt lên bài (hiện ~3.5 giây rồi mờ dần). */
+.coin-float { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); font-weight: 900; font-size: 15px; text-shadow: 0 1px 3px rgba(0,0,0,.8); animation: coin-float-up 3.5s ease-out forwards; z-index: 60; white-space: nowrap; pointer-events: none; }
+@keyframes coin-float-up { 0% { opacity: 0; transform: translate(-50%, 6px); } 12% { opacity: 1; transform: translate(-50%, 0); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -26px); } }
 @keyframes fly-draw-left { from { transform: translate(0,0) scale(1); opacity: 1; } to { transform: translate(-42vw,0) scale(.55); opacity: 0; } }
 @keyframes fly-draw-right { from { transform: translate(0,0) scale(1); opacity: 1; } to { transform: translate(42vw,0) scale(.55); opacity: 0; } }
 @keyframes fly-draw-bottom { from { transform: translate(0,0) scale(1); opacity: 1; } to { transform: translate(18vw,32vh) scale(.72); opacity: 0; } } /* bay xuong cuoi tay bai duoi giua, lech phai = dau cuoi tay */

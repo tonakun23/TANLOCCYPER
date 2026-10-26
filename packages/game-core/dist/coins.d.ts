@@ -7,6 +7,8 @@ export declare const ENTRY_MULTIPLIER = 10;
 export declare function minBalance(level: number): number;
 export declare function isValidLevel(level: number): boolean;
 export declare function formatCoins(n: number): string;
+export declare function formatBalanceShort(n: number): string;
+export declare function liveTakeTotals(level: number, takeLog: TakeEntry[]): Record<string, number>;
 export declare function rankPct(playerCount: number): number[];
 export interface PlayerSettlement {
     attackDelta: number;
