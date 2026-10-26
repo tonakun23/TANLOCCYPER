@@ -279,7 +279,7 @@ export default function App() {
         </div>
         {/* Hàng phụ gọn 1 dòng: nhập mã phòng + mức bàn bot + làm mới (bảng vẫn chiếm gần hết màn hình). */}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "10px min(2vw, 20px) 0" }}>
-          <input className="text-black px-4 py-2 rounded-full font-bold" style={{ width: 210 }} placeholder="Nhập mã phòng 6 số" value={joinCode} onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
+          <input className="text-black bg-white px-4 py-2 rounded-full font-bold" style={{ width: 210 }} placeholder="Nhập mã phòng 6 số" value={joinCode} onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
           <button className="tan-pill green" disabled={joinCode.length !== 6} style={{ opacity: joinCode.length === 6 ? 1 : 0.5, fontSize: 14, padding: "8px 18px" }} onClick={() => s.onlineJoinRoom(joinCode)}>Vào phòng</button>
           <span style={{ fontSize: 13, color: "rgba(255,255,255,.75)" }}>Số dư: <b style={{ color: "#ffd97a" }}>{s.balance.toLocaleString("vi-VN")} xu</b></span>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -361,8 +361,7 @@ export default function App() {
             <div style={{ color: "#ffd97a", fontWeight: 700, marginBottom: 4 }}>Mã phòng (giữa bàn)</div>
             <div style={{ fontSize: 44, fontWeight: 900, letterSpacing: 6, color: "#facc15" }}>{code}</div>
             <button className="bg-yellow-400 text-black font-bold px-5 py-2 rounded-full mt-3" onClick={() => { try { navigator.clipboard?.writeText(code); } catch { /* bỏ qua */ } }}>Sao chép mã phòng</button>
-            <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13, marginTop: 10 }}>Gửi mã này cho bạn bè để họ vào phòng. Phòng này không có bot.</p>
-            {s.onlineRoom && s.onlineRoom.level > 0 && (() => { const meRoom = s.onlineRoom!.players.find((pl) => pl.id === s.onlineMyLobbyId); const bal = meRoom ? meRoom.balance : s.balance; return <p style={{ color: "#ffd97a", fontSize: 13, marginTop: 4 }}>Mức bàn: {formatCoins(s.onlineRoom!.level)} · Vào bàn tối thiểu: {formatCoins(minBalance(s.onlineRoom!.level))} xu · Số dư của bạn: {bal.toLocaleString("vi-VN")} xu</p>; })()}
+            {s.onlineRoom && s.onlineRoom.level > 0 && (() => { const meRoom = s.onlineRoom!.players.find((pl) => pl.id === s.onlineMyLobbyId); const bal = meRoom ? meRoom.balance : s.balance; return <p style={{ color: "#ffd97a", fontSize: 13, marginTop: 10 }}>Mức bàn: {formatCoins(s.onlineRoom!.level)} · Vào bàn tối thiểu: {formatCoins(minBalance(s.onlineRoom!.level))} xu · Số dư của bạn: {bal.toLocaleString("vi-VN")} xu</p>; })()}
           </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
             {seats.map((pl, i) => pl ? (
@@ -379,12 +378,11 @@ export default function App() {
               </div>
             ))}
           </div>
-          <div style={{ textAlign: "center" }}>
-            <p style={{ color: "#ffd97a", fontSize: 13 }}>Đủ 2 người là tự động đếm 3-2-1 rồi phát bài, không cần bấm gì thêm.</p>
-            {s.onlineError && <p style={{ color: "#f87171", fontSize: 13, marginTop: 4 }}>{s.onlineError}</p>}
-            <p style={{ color: "rgba(255,255,255,.6)", fontSize: 13, marginTop: 4 }}>Kết nối: {s.onlineWsStatus} · Phòng thật qua WebSocket, không có bot. Muốn chơi ngay một mình, bấm Chơi với bot.</p>
-            <button className="tan-pill" style={{ background: "#7c3aed", color: "#fff", marginTop: 12 }} onClick={startBotGame}>Chơi với bot</button>
-          </div>
+          {s.onlineError && (
+            <div style={{ textAlign: "center" }}>
+              <p style={{ color: "#f87171", fontSize: 13 }}>{s.onlineError}</p>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -685,7 +683,7 @@ export default function App() {
             ))}
           </div>
           <form className="flex gap-2 p-4 border-t border-white/20" onSubmit={(e) => { e.preventDefault(); const msg = chatText.trim(); if (msg) { s.sendChat(msg); setBubble({ text: msg, key: Date.now() }); } setChatText(""); }}>
-            <input className="flex-1 min-w-0 text-black px-3 py-2 rounded-full text-sm" placeholder="Nhắn trong ván này…" value={chatText} onChange={(e) => setChatText(e.target.value)} />
+            <input className="flex-1 min-w-0 bg-white text-black px-3 py-2 rounded-full text-sm" placeholder="Nhắn trong ván này…" value={chatText} onChange={(e) => setChatText(e.target.value)} />
             <button className="bg-yellow-400 text-black font-bold px-4 rounded-full text-sm" type="submit">Gửi</button>
           </form>
           <p className="text-center text-white/50 text-xs pb-2">Thoát ván là mất chat, không lưu lại.</p>
