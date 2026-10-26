@@ -3,8 +3,12 @@
 export type Suit = "S" | "H" | "D" | "C";
 export type Phase = "WAITING" | "DEALING" | "ATTACKING" | "DEFENDING" | "RESOLVING" | "DRAWING" | "FINISHED";
 export interface Card { id: string; suit: Suit; rank: number; }
-export interface AttackPair { attack: Card; defense: Card | null; }
+export interface AttackPair { attack: Card; defense: Card | null; attackedBy: string; }
 export interface PlayerState { id: string; name: string; hand: Card[]; finished: boolean; }
+// Log lượt tấn bị ôm (phục vụ quyết toán xu): mỗi lượt ghi người ôm, số lá
+// tấn của từng người đánh (kể cả lá đã được đỡ cặp trước khi người đỡ bỏ cuộc),
+// và tổng số lá tấn trong lượt đó.
+export interface TakeEntry { defenderId: string; counts: Record<string, number>; cardCount: number; }
 export interface GameResult { loserId: string | null; finishOrder: string[]; }
 export interface GameState {
   version: number; phase: Phase; ruleSet: string;
@@ -13,6 +17,7 @@ export interface GameState {
   attackerId: string; defenderId: string; defenderInitialHandCount: number;
   maxAttackCards: number; handSize: number; allowTransfer: boolean;
   finishOrder: string[]; loserId: string | null; result: GameResult | null;
+  takeLog: TakeEntry[];
   // Giai đoạn bốc bài (DRAWING): danh sách người chơi còn cần bốc, theo đúng
   // thứ tự bốc (tấn chính -> người thêm -> người đỡ cuối, hoặc khi lên bài
   // thì tấn/adders, người lên bài không bốc). Bốc từng lá, đủ 8 lá thì thôi.
@@ -60,10 +65,15 @@ export function canTransferCard(attack: Card, card: Card): boolean { return atta
 function playerById(state: GameState, id: string): PlayerState | undefined { return state.players.find((p) => p.id === id); }
 function activePlayers(state: GameState): PlayerState[] { return state.players.filter((p) => !p.finished); }
 function nextActiveId(state: GameState, fromId: string): string {
-  const active = activePlayers(state);
-  if (active.length <= 1) return fromId;
-  const idx = active.findIndex((p) => p.id === fromId);
-  return active[(idx + 1) % active.length].id;
+  // Người kế tiếp còn chơi theo đúng thứ tự ghế (kể cả khi fromId đã xong ván
+  // thì vẫn tính ghế kế tiếp sau fromId, không nhảy về ghế đầu như bản cũ).
+  const order = state.players;
+  const start = order.findIndex((p) => p.id === fromId);
+  for (let k = 1; k <= order.length; k++) {
+    const cand = order[(start + k) % order.length];
+    if (!cand.finished) return cand.id;
+  }
+  return fromId;
 }
 function drawUp(state: GameState, orderIds: string[]): void {
   for (const id of orderIds) {
@@ -82,6 +92,18 @@ function checkFinished(state: GameState): void {
     state.phase = "FINISHED";
     state.loserId = remaining.length === 1 ? remaining[0].id : null;
     state.result = { loserId: state.loserId, finishOrder: [...state.finishOrder] };
+    return;
+  }
+  // Người tấn/người đỡ vừa bị đánh dấu xong ván (hết bài đúng lúc nọc cạn)
+  // nhưng vẫn đang giữ lượt: chuyển lượt cho người còn chơi kế tiếp theo ghế,
+  // không để ván kẹt ở người đã xong ván mà không còn bài để đánh.
+  // Người đỡ luôn là người kế tiếp sau người tấn nên tính lại cả hai.
+  const atk = playerById(state, state.attackerId);
+  const def = playerById(state, state.defenderId);
+  if (atk?.finished || def?.finished) {
+    if (atk?.finished) state.attackerId = nextActiveId(state, state.attackerId);
+    state.defenderId = nextActiveId(state, state.attackerId);
+    state.defenderInitialHandCount = (playerById(state, state.defenderId) as PlayerState)?.hand.length || 0;
   }
 }
 // Bất biến bắt buộc: 1 lá chỉ ở 1 nơi, tổng luôn 52, id duy nhất.
@@ -112,7 +134,7 @@ export function createGame(opts: GameOptions = {}): GameState {
     trumpSuit: trumpCard.suit, trumpCardId: trumpCard.id, attackerId: firstAttacker.id, defenderId: "",
     defenderInitialHandCount: 0, maxAttackCards: opts.maxAttackCards ?? 6, handSize,
     allowTransfer: opts.allowTransfer ?? true, finishOrder: [], loserId: null, result: null,
-    pendingDraw: [],
+    pendingDraw: [], takeLog: [],
   };
   state.defenderId = nextActiveId(state, firstAttacker.id);
   state.defenderInitialHandCount = (playerById(state, state.defenderId) as PlayerState).hand.length;
@@ -139,7 +161,7 @@ export function attack(state: GameState, playerId: string, cardIdStr: string): G
   const card = p.hand[idx];
   if (!canAttackCard(state, playerId, card)) throw err("INVALID_ATTACK", "Lá tấn không hợp lệ / sai lượt / vượt giới hạn");
   if (state.table.length === 0) state.defenderInitialHandCount = (playerById(state, state.defenderId) as PlayerState).hand.length;
-  p.hand.splice(idx, 1); state.table.push({ attack: card, defense: null }); state.phase = "DEFENDING"; state.version++; return state;
+  p.hand.splice(idx, 1); state.table.push({ attack: card, defense: null, attackedBy: playerId }); state.phase = "DEFENDING"; state.version++; return state;
 }
 export function defend(state: GameState, playerId: string, attackCardId: string, defenseCardId: string): GameState {
   if (state.phase === "FINISHED") throw err("GAME_FINISHED", "Ván đã kết thúc");
@@ -160,7 +182,7 @@ export function transfer(state: GameState, playerId: string, cardIdStr: string):
   const newDefenderId = nextActiveId(state, playerId);
   const newDefender = playerById(state, newDefenderId) as PlayerState;
   if (newDefender.hand.length < state.table.length + 1) throw err("INVALID_TRANSFER", "Người tiếp theo không đủ bài để nhận lượt tấn");
-  const card = p.hand.splice(idx, 1)[0]; state.table.push({ attack: card, defense: null });
+  const card = p.hand.splice(idx, 1)[0]; state.table.push({ attack: card, defense: null, attackedBy: playerId });
   state.defenderId = newDefenderId; state.defenderInitialHandCount = newDefender.hand.length; state.version++; return state;
 }
 /** Lên bài (nhận cả bàn) nhưng CHƯA bốc: chuyển sang phase DRAWING, chờ bốc từng lá. */
@@ -168,6 +190,13 @@ export function resolveTake(state: GameState, playerId: string): GameState {
   if (playerId !== state.defenderId) throw err("NOT_YOUR_TURN", "Không phải lượt đỡ của bạn");
   if (state.table.length === 0) throw err("VALIDATION_ERROR", "Không có bài trên bàn để nhận");
   const defender = playerById(state, playerId) as PlayerState;
+  // Ghi log lượt ôm TRƯỚC khi dọn bàn: đếm tất cả lá tấn (kể cả lá đã đỡ cặp),
+  // vì người ôm phải ôm cả chồng bài trên bàn.
+  {
+    const counts: Record<string, number> = {};
+    for (const pair of state.table) counts[pair.attackedBy] = (counts[pair.attackedBy] || 0) + 1;
+    state.takeLog.push({ defenderId: playerId, counts, cardCount: state.table.length });
+  }
   for (const pair of state.table) { defender.hand.push(pair.attack); if (pair.defense) defender.hand.push(pair.defense); }
   state.table = [];
   const order: string[] = []; const seatOrder = state.players.map((p) => p.id); const start = seatOrder.indexOf(state.attackerId);
@@ -237,5 +266,6 @@ export function publicView(state: GameState, viewerId: string): Record<string, u
     players: state.players.map((p) => ({ id: p.id, name: p.name, cardCount: p.hand.length, finished: p.finished })),
     myHand: ((playerById(state, viewerId)?.hand) || []).map((c) => c.id),
     finishOrder: [...state.finishOrder], loserId: state.loserId, result: state.result,
+    takeLog: state.takeLog.map((t) => ({ defenderId: t.defenderId, counts: { ...t.counts }, cardCount: t.cardCount })),
   };
 }

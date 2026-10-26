@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createDeck, createGame, canBeat, parseCard, attack, defend, transfer, take, finishAttack, publicView, assertInvariants } from "../dist/engine.js";
+import { createDeck, createGame, canBeat, parseCard, attack, defend, transfer, take, finishAttack, publicView, assertInvariants, resolveTake } from "../dist/engine.js";
 import { createCommandProcessor } from "../dist/server.js";
 
 function fixedGame() {
@@ -90,4 +90,25 @@ test("Server adapter: trùng actionId không chạy lại, version cũ bị ch�
   assert.equal(rOutsider.accepted, false); assert.equal(rOutsider.code, "ROOM_ACCESS_DENIED");
   const rDefend = proc.apply(g, { actionId: "a4", expectedVersion: g.version, playerId: "player_1", type: "DEFEND", payload: { attackCardId: "S-8", defenseCardId: "S-10" } }, members);
   assert.equal(rDefend.accepted, true);
+});
+
+test("Lượt không kẹt ở người vừa xong ván khi nọc cạn (hồi quy)", () => {
+  // 4 người, nọc đã cạn. P0 tấn, P1 ôm -> lượt tấn lẽ ra sang P2, nhưng P2
+  // đã hết bài nên xong ván ngay trong checkFinished; lượt phải chuyển tiếp
+  // sang P3 (người còn chơi kế tiếp theo ghế), người đỡ là P0.
+  const g = createGame({ playerCount: 4, rng: () => 0.5 });
+  g.players[0].hand = [parseCard("S-8"), parseCard("S-9")];
+  g.players[1].hand = [parseCard("S-10"), parseCard("S-3")];
+  g.players[2].hand = [];
+  g.players[3].hand = [parseCard("S-4")];
+  g.drawPile = [];
+  g.trumpSuit = "H"; g.trumpCardId = "H-6";
+  g.attackerId = "player_0"; g.defenderId = "player_1"; g.defenderInitialHandCount = 2;
+  attack(g, "player_0", "S-8");
+  resolveTake(g, "player_1");
+  assert.equal(g.players[2].finished, true);
+  assert.equal(g.attackerId, "player_3");
+  assert.equal(g.defenderId, "player_0");
+  assert.equal(g.defenderInitialHandCount, 1);
+  assert.equal(g.phase, "ATTACKING");
 });

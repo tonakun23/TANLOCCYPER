@@ -3,6 +3,7 @@ import { useGameStore } from "./store";
 import { CardView } from "./components/CardView";
 import { TableCanvas } from "./components/TableCanvas";
 import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, canAttackCard, cardLabel } from "../../../packages/game-core/src/engine";
+import { TABLE_LEVELS, formatCoins, minBalance } from "../../../packages/game-core/src/coins";
 import { X, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, Crown, LogOut, } from "lucide-react";
 import { playDealSound, playCardSound, playTrumpAceSound, setSoundEnabled, setSoundVolume } from "./game/sound";
 const ic = { size: 22, strokeWidth: 2 };
@@ -25,6 +26,7 @@ export default function App() {
   const [firstEffect, setFirstEffect] = useState(false);
   const [googleError, setGoogleError] = useState("");
   const [popupBlocked, setPopupBlocked] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   useEffect(() => { void s.loadFirebaseConfig(); }, []);
   // Màn CHƠI NGAY: tải bảng phòng thật, làm mới mỗi 5 giây khi đang ở màn này.
   useEffect(() => {
@@ -146,15 +148,17 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [followKey]);
   const trumpMarker: Record<string, string> = { S: "spades", C: "clubs", H: "hearts", D: "diamonds" };
-  // Màn Tạo phòng (ảnh mẫu): slider mức điểm, chọn số người, nút TẠO PHÒNG.
-  const BET_LEVELS = ["5K", "20K", "50K", "100K", "200K", "500K", "1M"];
-  const BET_MINS: Record<string, string> = { "5K": "50K", "20K": "200K", "50K": "500K", "100K": "1M", "200K": "2M", "500K": "5M", "1M": "6M" };
+  // Màn Tạo phòng (ảnh mẫu): slider mức xu, chọn số người, nút TẠO PHÒNG.
+  // 8 mức xu theo spec (50K–10M), vào bàn cần 10 lần mức bàn.
+  const BET_LEVELS = TABLE_LEVELS.map((v) => formatCoins(v));
   const [betIdx, setBetIdx] = useState(0);
   const [createCount, setCreateCount] = useState(4);
+  const createLevel = TABLE_LEVELS[betIdx];
+  const canAffordCreate = s.balance >= minBalance(createLevel);
   const submitCreateRoom = () => {
-    const id = 148000 + Math.floor(Math.random() * 899);
+    if (!canAffordCreate) return;
     // Chơi với bạn / tạo phòng: KHÔNG bot, tạo phòng thật qua WebSocket, mã phòng hiện giữa bàn chờ.
-    s.onlineCreateRoom(BET_LEVELS[betIdx], createCount, !s.createPrivate);
+    s.onlineCreateRoom(createLevel, createCount, !s.createPrivate);
   };
   const homeTop = (
     <div className="tan-top">
@@ -166,7 +170,7 @@ export default function App() {
         </div>
       </div>
       <div className="tan-shop">
-        <span className="tan-coins"><img src="/icons/coin.svg" alt="Xu" style={{ width: "min(7vh, 44px)", height: "min(7vh, 44px)" }} /> 6,417,098</span>
+        <span className="tan-coins"><img src="/icons/coin.svg" alt="Xu" style={{ width: "min(7vh, 44px)", height: "min(7vh, 44px)" }} /> {s.balance.toLocaleString("vi-VN")}</span>
       </div>
       <div style={{ display: "flex", gap: 12 }}>
         <button className="tan-icon" style={{ cursor: "default" }} aria-label="Bạn bè (chưa mở)"><Users {...ic} /></button>
@@ -182,7 +186,7 @@ export default function App() {
         <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><UserPlus {...ic} /></span></button>
         <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><Trophy {...ic} /></span></button>
         <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><Gift {...ic} /></span><span className="tan-badge">10</span></button>
-        <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><ClipboardList {...ic} /></span></button>
+        <button className="tan-bottom-btn" onClick={() => setHistoryOpen(true)} aria-label="Lịch sử xu"><span className="circle"><ClipboardList {...ic} /></span></button>
       </div>
       <button className="tan-spin" style={{ cursor: "default" }}>SPIN</button>
       <div className="tan-bottom-group">
@@ -218,7 +222,7 @@ export default function App() {
               </div>
               <button className="tan-icon" style={{ background: "#9f1239" }} onClick={() => setBetIdx((v) => Math.min(BET_LEVELS.length - 1, v + 1))} aria-label="Tăng mức điểm"><Plus size={22} /></button>
             </div>
-            <p style={{ textAlign: "center", color: "rgba(255,255,255,.7)", fontSize: 13, marginTop: 8 }}>Tối thiểu vào phòng: {BET_MINS[BET_LEVELS[betIdx]]} điểm · Điểm chỉ là điểm thưởng, không tiền thật</p>
+            <p style={{ textAlign: "center", color: "rgba(255,255,255,.7)", fontSize: 13, marginTop: 8 }}>Tối thiểu vào phòng: {formatCoins(minBalance(createLevel))} xu · Xu chỉ là điểm thưởng, không tiền thật{!canAffordCreate ? ` · Bạn có ${s.balance.toLocaleString("vi-VN")} xu, chưa đủ vào mức này` : ""}</p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 24, marginTop: "min(6vh, 40px)", flexWrap: "wrap" }}>
             <span style={{ fontSize: "clamp(15px, 3.4vh, 22px)", color: "#fef3c7" }}>Số người:</span>
@@ -232,7 +236,7 @@ export default function App() {
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ textAlign: "center", paddingBottom: "min(6vh, 40px)" }}>
-          <button className="tan-pill" style={{ background: "#2f9e8f", color: "#fff", fontSize: "clamp(15px, 3.4vh, 22px)" }} onClick={submitCreateRoom}>TẠO PHÒNG</button>
+          <button className="tan-pill" style={{ background: canAffordCreate ? "#2f9e8f" : "rgba(255,255,255,.25)", color: "#fff", fontSize: "clamp(15px, 3.4vh, 22px)" }} disabled={!canAffordCreate} onClick={submitCreateRoom}>TẠO PHÒNG</button>
         </div>
       </div>
     );
@@ -242,7 +246,7 @@ export default function App() {
       <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
         <div className="tan-rooms-top">
           <div style={{ margin: "0 auto", display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
-            <button className="tan-pill orange" onClick={() => s.onlineCreateRoom("5K", 4, true)}>CHƠI NGAY</button>
+            <button className="tan-pill orange" onClick={() => s.onlineCreateRoom(50_000, 4, true)}>CHƠI NGAY</button>
             <button className="tan-pill green" onClick={() => s.goToCreate(false)}>TẠO PHÒNG</button>
             <button className="tan-pill" style={{ background: "#7c3aed", color: "#fff" }} onClick={startBotGame}>CHƠI VỚI BOT</button>
           </div>
@@ -254,6 +258,21 @@ export default function App() {
           <div style={{ display: "flex", gap: 12 }}>
             <input className="text-black px-4 py-3 rounded-full flex-1 font-bold" placeholder="Nhập mã phòng 6 số, ví dụ 148123" value={joinCode} onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
             <button className="tan-pill green" disabled={joinCode.length !== 6} style={{ opacity: joinCode.length === 6 ? 1 : 0.5 }} onClick={() => s.onlineJoinRoom(joinCode)}>Vào phòng</button>
+          </div>
+          <div style={{ marginTop: 28 }}>
+            <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fef3c7", marginBottom: 8 }}>Mức bàn chơi với bot</h2>
+            <p style={{ color: "rgba(255,255,255,.75)", fontSize: 14, marginBottom: 12 }}>Số dư của bạn: <b style={{ color: "#ffd97a" }}>{s.balance.toLocaleString("vi-VN")} xu</b> · Mức mờ là chưa đủ 10 lần mức bàn để vào.</p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {TABLE_LEVELS.map((lv) => {
+                const afford = s.balance >= minBalance(lv);
+                const selected = s.tableLevel === lv;
+                return (
+                  <button key={lv} disabled={!afford} onClick={() => s.setTableLevel(lv)} style={{ padding: "8px 14px", borderRadius: 999, fontWeight: 800, fontSize: 14, border: selected ? "2px solid #facc15" : "1px solid rgba(255,255,255,.3)", background: selected ? "#f59e0b" : "rgba(0,0,0,.3)", color: afford ? "#fff" : "rgba(255,255,255,.35)", cursor: afford ? "pointer" : "default" }}>
+                    {formatCoins(lv)}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "28px 0 8px" }}>
             <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fef3c7", margin: 0 }}>Phòng thật đang mở</h2>
@@ -301,6 +320,7 @@ export default function App() {
             <div style={{ fontSize: 44, fontWeight: 900, letterSpacing: 6, color: "#facc15" }}>{code}</div>
             <button className="bg-yellow-400 text-black font-bold px-5 py-2 rounded-full mt-3" onClick={() => { try { navigator.clipboard?.writeText(code); } catch { /* bỏ qua */ } }}>Sao chép mã phòng</button>
             <p style={{ color: "rgba(255,255,255,.7)", fontSize: 13, marginTop: 10 }}>Gửi mã này cho bạn bè để họ vào phòng. Phòng này không có bot.</p>
+            {s.onlineRoom && s.onlineRoom.level > 0 && (() => { const meRoom = s.onlineRoom!.players.find((pl) => pl.id === s.onlineMyLobbyId); const bal = meRoom ? meRoom.balance : s.balance; return <p style={{ color: "#ffd97a", fontSize: 13, marginTop: 4 }}>Mức bàn: {formatCoins(s.onlineRoom!.level)} · Vào bàn tối thiểu: {formatCoins(minBalance(s.onlineRoom!.level))} xu · Số dư của bạn: {bal.toLocaleString("vi-VN")} xu</p>; })()}
           </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
             {seats.map((pl, i) => pl ? (
@@ -409,6 +429,29 @@ export default function App() {
           </button>
         </div>
         {homeBottom}
+        {historyOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setHistoryOpen(false)}>
+            <div className="w-full max-w-lg max-h-[85vh] overflow-auto bg-red-900 border border-yellow-400 rounded-2xl p-5 text-sm leading-relaxed" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-3"><h2 className="font-bold text-lg">Lịch sử xu</h2><button onClick={() => setHistoryOpen(false)} aria-label="Đóng lịch sử"><X size={18} /></button></div>
+              <p className="text-white/70 mb-3">Số dư hiện tại: <b className="text-yellow-300">{s.balance.toLocaleString("vi-VN")} xu</b> · Xu chỉ là điểm thưởng, không nạp/rút hay đổi tiền thật.</p>
+              {s.coinHistory.length === 0 ? (
+                <p className="text-white/60">Chưa có ván nào quyết toán. Chơi xong 1 ván (kể cả rời ván giữa chừng) sẽ ghi lại ở đây.</p>
+              ) : s.coinHistory.slice(0, 10).map((h, i) => {
+                const myNet = h.perPlayer[h.myId]?.net ?? 0;
+                const names = h.names;
+                return (
+                  <div key={`${h.at}-${i}`} className="border-t border-white/15 py-3">
+                    <p className="font-bold">{new Date(h.at).toLocaleString("vi-VN")} · {h.mode === "bot" ? "Chơi với bot" : "Chơi với người"} · Bàn {formatCoins(h.level)} · <span className={myNet >= 0 ? "text-green-400" : "text-red-400"}>Bạn {myNet > 0 ? "+" : ""}{myNet.toLocaleString("vi-VN")} xu</span></p>
+                    {Object.entries(h.perPlayer).map(([id, p]) => (
+                      <p key={id} className="text-white/75 text-[13px]">{names[id] || id}: tấn {p.attackDelta > 0 ? "+" : ""}{p.attackDelta.toLocaleString("vi-VN")}, hạng {p.rankDelta > 0 ? "+" : ""}{p.rankDelta.toLocaleString("vi-VN")}, phí {p.fee > 0 ? `-${p.fee.toLocaleString("vi-VN")}` : "0"} → <b>{p.net > 0 ? "+" : ""}{p.net.toLocaleString("vi-VN")}</b></p>
+                    ))}
+                    <p className="text-white/50 text-xs">Phí sàn: {h.totalFee.toLocaleString("vi-VN")} xu{h.totalShortfall > 0 ? ` · Hệ thống bù hụt: ${h.totalShortfall.toLocaleString("vi-VN")} xu` : ""}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {settingsOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
             <div className="w-80 max-w-[92vw] bg-red-900 border border-yellow-400 rounded-2xl p-5">
@@ -621,7 +664,7 @@ export default function App() {
         <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
           <div className="w-80 max-w-[92vw] bg-red-900 border border-yellow-400 rounded-2xl p-5 text-center">
             <h2 className="font-bold text-lg mb-2">Bạn có muốn rời khỏi ván đấu?</h2>
-            <p className="text-white/70 text-sm mb-4">Rời ván sẽ mất ván đang chơi, quay về sảnh.</p>
+            <p className="text-white/70 text-sm mb-4">{s.onlineMode ? "Rời ván sẽ mất ván đang chơi, quay về sảnh." : "Rời ván giữa chừng tính là hạng cuối, xu sẽ quyết toán theo luật rồi quay về sảnh."}</p>
             <div className="flex gap-3 justify-center">
               <button className="bg-red-500 text-white font-bold px-6 py-2 rounded-full" onClick={() => { setLeaveOpen(false); s.backToLobby(); }}>Xác nhận</button>
               <button className="bg-white text-black font-bold px-6 py-2 rounded-full" onClick={() => setLeaveOpen(false)}>Hủy</button>
@@ -705,6 +748,36 @@ export default function App() {
             <h2 className="text-xl font-bold">Kết quả</h2>
             <p>Người thua: <b>{game.players.find((p) => p.id === game.loserId)?.name}</b></p>
             <p>Thứ tự hoàn thành: {game.finishOrder.map((id) => game.players.find((p) => p.id === id)?.name).join(" → ") || "—"}</p>
+            {s.settlement && (
+              <div className="mt-4 text-left bg-black/30 rounded-xl p-3 text-sm">
+                <p className="font-bold text-yellow-200 text-center mb-2">Quyết toán xu — Bàn {formatCoins(s.settlement.level)}</p>
+                <table className="w-full">
+                  <thead><tr className="text-white/60"><th className="text-left py-1">Người chơi</th><th className="text-right">Tấn</th><th className="text-right">Hạng</th><th className="text-right">Phí</th><th className="text-right">Kết quả</th><th className="text-right">Số dư</th></tr></thead>
+                  <tbody>
+                    {s.settlement.rows.map((r) => (
+                      <tr key={r.id} className="border-t border-white/10">
+                        <td className="py-1 font-bold">{r.name}</td>
+                        <td className="text-right">{r.attackDelta > 0 ? "+" : ""}{r.attackDelta.toLocaleString("vi-VN")}</td>
+                        <td className="text-right">{r.rankDelta > 0 ? "+" : ""}{r.rankDelta.toLocaleString("vi-VN")}</td>
+                        <td className="text-right">{r.fee > 0 ? `-${r.fee.toLocaleString("vi-VN")}` : "0"}</td>
+                        <td className={`text-right font-bold ${r.net >= 0 ? "text-green-400" : "text-red-400"}`}>{r.net > 0 ? "+" : ""}{r.net.toLocaleString("vi-VN")}</td>
+                        <td className="text-right">{r.balanceAfter === null ? "—" : r.balanceAfter.toLocaleString("vi-VN")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="text-white/60 text-xs mt-2 text-center">Phí sàn hệ thống thu: {s.settlement.totalFee.toLocaleString("vi-VN")} xu{s.settlement.totalShortfall > 0 ? ` · Hệ thống bù hụt chặn ở 0: ${s.settlement.totalShortfall.toLocaleString("vi-VN")} xu` : ""}</p>
+                {s.settlement.takeLog.length > 0 && (
+                  <div className="mt-2 text-xs text-white/70">
+                    {s.settlement.takeLog.map((t, i) => {
+                      const nm: Record<string, string> = {}; for (const r of s.settlement!.rows) nm[r.id] = r.name;
+                      const parts = Object.entries(t.counts).map(([id, c]) => `${nm[id] || id} ${c} lá`).join(", ");
+                      return <p key={i} className="mt-1">· {nm[t.defenderId] || t.defenderId} ôm {t.cardCount} lá ({parts})</p>;
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
             <button className="bg-yellow-400 text-black font-bold px-6 py-3 rounded-full mt-3" onClick={s.backToLobby}>Về sảnh</button>
           </div>
         </div>

@@ -8,12 +8,18 @@ export interface Card {
 export interface AttackPair {
     attack: Card;
     defense: Card | null;
+    attackedBy: string;
 }
 export interface PlayerState {
     id: string;
     name: string;
     hand: Card[];
     finished: boolean;
+}
+export interface TakeEntry {
+    defenderId: string;
+    counts: Record<string, number>;
+    cardCount: number;
 }
 export interface GameResult {
     loserId: string | null;
@@ -38,6 +44,7 @@ export interface GameState {
     finishOrder: string[];
     loserId: string | null;
     result: GameResult | null;
+    takeLog: TakeEntry[];
     pendingDraw: string[];
 }
 export interface GameOptions {

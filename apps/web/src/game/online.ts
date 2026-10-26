@@ -26,5 +26,6 @@ export function viewToGame(view: Record<string, unknown>, myEngineId: string): R
     defenderInitialHandCount: 8, maxAttackCards: 6, handSize: 8, allowTransfer: false,
     finishOrder: view.finishOrder, loserId: view.loserId, result: view.result,
     pendingDraw: view.pendingDraw,
+    takeLog: (view.takeLog as { defenderId: string; counts: Record<string, number>; cardCount: number }[]) || [],
   };
 }

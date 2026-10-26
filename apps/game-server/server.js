@@ -21,7 +21,7 @@
 import http from "node:http";
 import { randomUUID, createPublicKey, createVerify } from "node:crypto";
 import { WebSocketServer } from "ws";
-import { createGame, createCommandProcessor, publicView, canAttackCard, take, finishAttack } from "../../packages/game-core/dist/index.js";
+import { createGame, createCommandProcessor, publicView, canAttackCard, take, finishAttack, settleGame, isValidLevel, formatCoins, minBalance, START_BALANCE } from "../../packages/game-core/dist/index.js";
 
 const PORT = Number(process.env.PORT || 3000);
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
@@ -106,10 +106,29 @@ function makeCode() {
 function lobbyRoomView(lobby) {
   return {
     type: "room",
-    code: lobby.code, bet: lobby.bet, maxPlayers: lobby.maxPlayers, hostId: lobby.hostId,
+    code: lobby.code, bet: lobby.bet, level: lobby.level || 0, maxPlayers: lobby.maxPlayers, hostId: lobby.hostId,
     state: lobby.game ? (lobby.game.phase === "FINISHED" ? "finished" : "playing") : "waiting",
-    players: lobby.players.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar || null, ready: p.ready, online: !!p.socket, isHost: p.id === lobby.hostId, google: !!p.googleId })),
+    players: lobby.players.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar || null, ready: p.ready, online: !!p.socket, isHost: p.id === lobby.hostId, google: !!p.googleId, balance: lobby.balances ? (lobby.balances.get(playerKey(p)) ?? START_BALANCE) : START_BALANCE })),
   };
+}
+// Khóa số dư: tài khoản Google dùng googleId (ổn định qua các phòng),
+// khách vãng lai dùng id ghế trong phòng (mất khi phòng tan, backend chỉ RAM).
+function playerKey(p) { return p.googleId || p.id; }
+// Quyết toán xu khi ván kết thúc (chỉ chạy 1 lần mỗi ván): hạng + lượt tấn
+// bị ôm + phí sàn 10% trên lãi ròng + chặn số dư ở 0 (xem coins.ts).
+function maybeSettle(lobby) {
+  if (!lobby.game || lobby.game.phase !== "FINISHED" || lobby.settlement) return;
+  const game = lobby.game;
+  const balances = {};
+  for (const p of lobby.players) balances[p.engineId] = lobby.balances.get(playerKey(p)) ?? START_BALANCE;
+  const s = settleGame({ level: lobby.level, takeLog: game.takeLog || [], finishOrder: game.finishOrder, loserId: game.loserId, playerIds: lobby.players.map((p) => p.engineId), balances });
+  lobby.settlement = s;
+  for (const p of lobby.players) lobby.balances.set(playerKey(p), s.perPlayer[p.engineId].balanceAfter);
+  broadcast(lobby, {
+    type: "settlement", level: lobby.level, totalFee: s.totalFee, totalShortfall: s.totalShortfall,
+    players: lobby.players.map((p) => ({ engineId: p.engineId, name: p.name })),
+    perPlayer: s.perPlayer,
+  });
 }
 function sendTo(lobby, player, obj) {
   if (player.socket && player.socket.readyState === 1) player.socket.send(JSON.stringify(obj));
@@ -149,6 +168,7 @@ function executePending(lobby) {
   } catch { /* lệnh gốc không còn hợp lệ thì thôi */ }
   broadcast(lobby, { type: "follow-end", mode: pend.type === "TAKE" ? "take" : "finish" });
   broadcastGame(lobby);
+  maybeSettle(lobby);
 }
 function startPending(lobby, type, actorPlayer, actorEngineId) {
   const exclude = type === "TAKE" ? [actorEngineId] : [actorEngineId, lobby.game.defenderId];
@@ -244,7 +264,8 @@ wss.on("connection", (ws) => {
       if (msg.type === "create") {
         const session = msg.sessionToken ? sessions.get(msg.sessionToken) : null;
         const code = makeCode();
-        const lb = { code, bet: msg.bet || "5K", maxPlayers: Math.min(4, Math.max(2, Number(msg.maxPlayers || 4))), isPublic: !!msg.isPublic, hostId: null, players: [], game: null, processor: createCommandProcessor(), pending: null };
+        const level = isValidLevel(Number(msg.level)) ? Number(msg.level) : 50_000;
+        const lb = { code, bet: formatCoins(level), level, maxPlayers: Math.min(4, Math.max(2, Number(msg.maxPlayers || 4))), isPublic: !!msg.isPublic, hostId: null, players: [], game: null, processor: createCommandProcessor(), pending: null, balances: new Map(), settlement: null };
         const pl = { id: randomUUID(), token: randomUUID(), name: (session?.name || msg.name || "Bạn").toString().slice(0, 30), avatar: session?.avatar || msg.avatar || null, googleId: session?.googleId || null, ready: false, socket: ws, engineId: null };
         lb.hostId = pl.id; lb.players.push(pl); lobbies.set(code, lb); attach(lb, pl);
         ws.send(JSON.stringify({ type: "joined", playerId: pl.id, token: pl.token, code, isHost: true }));
@@ -276,10 +297,13 @@ wss.on("connection", (ws) => {
         if (lobby.game) return err("GAME_ALREADY_STARTED", "Ván đã bắt đầu");
         if (lobby.players.length < 2) return err("NOT_ENOUGH_PLAYERS", "Cần ít nhất 2 người");
         if (!lobby.players.every((p) => p.ready)) return err("NOT_ALL_READY", "Chưa phải mọi người đều sẵn sàng");
+        // Kiểm tra vào bàn: mỗi người cần số dư tối thiểu 10 lần mức bàn.
+        const poor = lobby.players.find((p) => (lobby.balances.get(playerKey(p)) ?? START_BALANCE) < minBalance(lobby.level));
+        if (poor) return err("NOT_ENOUGH_BALANCE", `${poor.name} chưa đủ xu vào bàn mức ${formatCoins(lobby.level)} (cần tối thiểu ${formatCoins(minBalance(lobby.level))})`);
         const names = lobby.players.map((p) => p.name);
         const game = createGame({ playerCount: lobby.players.length, playerNames: names, allowTransfer: false });
         lobby.players.forEach((p, i) => { p.engineId = game.players[i].id; });
-        lobby.game = game; lobby.pending = null;
+        lobby.game = game; lobby.pending = null; lobby.settlement = null;
         broadcastRoom(lobby); broadcastGame(lobby); return;
       }
       if (msg.type === "command") {
@@ -303,7 +327,7 @@ wss.on("connection", (ws) => {
           clearPending(lobby); broadcast(lobby, { type: "follow-end", mode: "finish" });
         }
         ws.send(JSON.stringify({ type: "command-result", accepted: true, version: result.version }));
-        broadcastGame(lobby); broadcastRoom(lobby); return;
+        broadcastGame(lobby); broadcastRoom(lobby); maybeSettle(lobby); return;
       }
       if (msg.type === "chat") {
         const text = String(msg.text || "").slice(0, 200).trim(); if (!text) return;
