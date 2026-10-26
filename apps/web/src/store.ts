@@ -195,6 +195,7 @@ store.setState({
   playCard: (cardId: string) => {
     const { game, selected, onlineMode, myId } = store.getState();
     if (!game || game.phase === "FINISHED") return;
+    if (selected === cardId) { store.setState({ selected: null }); return; }
     if (onlineMode) {
       const meO = game.players.find((pl) => pl.id === myId); if (!meO) return;
       if (game.defenderId === myId) {
@@ -202,11 +203,11 @@ store.setState({
         const beatable = game.table.filter((x) => !x.defense && canBeat(x.attack, card, game.trumpSuit));
         if (beatable.length === 1) { store.getState().defendPair(beatable[0].attack.id, cardId); return; }
         if (beatable.length > 1) { store.setState({ selected: cardId }); return; }
-        store.setState({ selected: cardId }); return;
+        store.setState({ selected: null }); store.getState().addLog(`${cardLabel(card)} không đỡ được lá nào trên bàn, thử lá khác hoặc bấm Lên bài.`); return;
       }
       const cardO = meO.hand.find((c) => c.id === cardId);
       if (cardO && canAttackCard(game, myId, cardO)) { onlineActionSeq++; onlineSend({ type: "command", actionId: `online-${Date.now()}-${onlineActionSeq}`, expectedVersion: game.version, cmdType: "ATTACK", payload: { cardId } }); store.setState({ selected: null }); }
-      else store.setState({ selected: cardId });
+      else { const t = game.table; const msg = t.length === 0 ? "Chưa tới lượt bạn tấn." : (t.length >= game.maxAttackCards || t.length >= game.defenderInitialHandCount) ? "Đã đủ số lá tấn tối đa của đợt này." : "Lá này không cùng hạng với bài trên bàn."; store.setState({ selected: null }); store.getState().addLog(msg); }
       return;
     }
     const me = game.players.find((p) => p.id === HUMAN_ID); if (!me) return;
@@ -217,7 +218,7 @@ store.setState({
       // vẫn rỗng nên nó return im lặng, không đỡ gì cả. Giờ truyền thẳng lá vừa bấm.
       if (beatable.length === 1) { store.getState().defendPair(beatable[0].attack.id, cardId); return; }
       if (beatable.length > 1) { store.setState({ selected: cardId }); store.getState().addLog(`Dùng ${cardLabel(card)} đỡ lá nào? Bấm 1 lá tấn trên bàn để chọn.`); return; }
-      store.setState({ selected: cardId });
+      store.setState({ selected: null });
       store.getState().addLog(`${cardLabel(card)} không đỡ được lá nào trên bàn, thử lá khác hoặc bấm Lên bài.`);
       return;
     }
@@ -225,7 +226,7 @@ store.setState({
     if (card && canAttackCard(game, HUMAN_ID, card)) {
       const before = tableIds(game);
       try { attack(game, HUMAN_ID, cardId); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), selected: null, humanAddPassed: false, followWindow: null, flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); playCardSound(); store.getState().addLog(`Bạn đánh ${cardLabel(card)}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
-    } else { store.setState({ selected: cardId }); }
+    } else { const t = game.table; const msg = t.length === 0 ? "Chưa tới lượt bạn tấn." : (t.length >= game.maxAttackCards || t.length >= game.defenderInitialHandCount) ? "Đã đủ số lá tấn tối đa của đợt này." : "Lá này không cùng hạng với bài trên bàn."; store.setState({ selected: null }); store.getState().addLog(msg); }
     void selected;
   },
   defendPair: (attackId: string, defenseCardId?: string) => {

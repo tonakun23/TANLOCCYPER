@@ -149,6 +149,8 @@ export function canAttackCard(state, playerId, card) {
     const p = playerById(state, playerId);
     if (!p || p.finished || state.phase === "FINISHED")
         return false;
+    if (state.phase !== "ATTACKING" && state.phase !== "DEFENDING")
+        return false;
     if (playerId === state.defenderId)
         return false;
     if (state.table.length === 0)

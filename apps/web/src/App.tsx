@@ -204,6 +204,28 @@ export default function App() {
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.flying]);
+  // Ván bot kết thúc: bỏ popup kết quả, quyết toán xong là đếm 3-2-1 vào ván mới luôn.
+  // Chỉ thử 1 lần mỗi ván (tránh lặp nếu startGame từ chối vì không đủ xu vào bàn).
+  const rematchTriedRef = useRef(-1);
+  useEffect(() => {
+    if (s.onlineMode || !game || game.phase !== "FINISHED") return;
+    if (s.settledNonce !== s.gameNonce) return;
+    if (rematchTriedRef.current === s.gameNonce) return;
+    rematchTriedRef.current = s.gameNonce;
+    startBotGame();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.phase, s.settledNonce, s.gameNonce, s.onlineMode]);
+  // Bốc bài: tới lượt mình thì chỉ có 3 giây tự bấm, hết 3 giây hệ thống tự bốc.
+  const isMyDrawTurn = !!game && game.phase === "DRAWING" && game.pendingDraw[0] === myId && !s.drawing;
+  const [drawSeconds, setDrawSeconds] = useState(3);
+  useEffect(() => { if (isMyDrawTurn) setDrawSeconds(3); }, [isMyDrawTurn]);
+  useEffect(() => {
+    if (!isMyDrawTurn) return;
+    if (drawSeconds <= 0) { void s.drawCards(); return; }
+    const id = setTimeout(() => setDrawSeconds((v) => v - 1), 1000);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMyDrawTurn, drawSeconds]);
   const iAmDefender = game?.defenderId === myId;
   const iAmAttacker = game?.attackerId === myId;
   const undefended = game?.table.filter((x) => !x.defense) ?? [];
@@ -602,7 +624,7 @@ export default function App() {
               <p className="mt-2"><b>Tấn cũng tính giờ:</b> người tấn có 30 giây, quanh avatar có vòng vàng đếm ngược, tấn lá mới thì reset lại 30 giây. Hết giờ tấn mà chưa đánh thì tự đánh lá yếu nhất có thể đánh được.</p>
               <p className="mt-2"><b>Lên bài:</b> không đỡ được (hoặc muốn lên) thì bấm Lên bài, nhận hết bài trên bàn, mất lượt tấn tiếp theo.</p>
               <p className="mt-2"><b>Bốc bài:</b> đỡ thành công và kết thúc đợt thì mọi người bốc từng lá cho đủ 8 lá, theo thứ tự người tấn, người thêm, người đỡ cuối. Hết nọc thì ai hết bài trước là xong, người còn bài cuối cùng thua.</p>
-              <p className="mt-2"><b>Nút trong ván:</b> Kết thúc đợt (người tấn chính, khi mọi lá đã được đỡ), Lên bài, Bốc bài (khi tới lượt bốc), Sắp xếp (bên phải tay bài, theo chất hoặc theo hạng, từ A xuống 2).</p>
+              <p className="mt-2"><b>Nút trong ván:</b> Kết thúc đợt (người tấn chính, khi mọi lá đã được đỡ), Lên bài, Bốc bài (khi tới lượt bốc, 3 giây không bấm sẽ tự bốc), Sắp xếp (bên phải tay bài, theo chất hoặc theo hạng, từ A xuống 2).</p>
               <p className="mt-2 text-yellow-200">Lưu ý: điểm/xu trong game chỉ là điểm thưởng, không nạp/rút hay đổi tiền thật. Bản này không còn chức năng chuyển tấn.</p>
               <button className="bg-yellow-400 text-black font-bold px-6 py-2 rounded-full mt-4" onClick={() => setHelpOpen(false)}>Đã hiểu</button>
             </div>
@@ -641,11 +663,11 @@ export default function App() {
   let hint = "Đang chờ bot đánh…";
   if (game.phase === "FINISHED") hint = game.loserId === myId ? "Bạn là người thua ván này." : `${game.players.find((p) => p.id === game.loserId)?.name} thua ván này.`;
   else if (iAmDefender && undefended.length) hint = "Tới lượt bạn đỡ: bấm lá bài để đỡ, hoặc bấm Lên bài bất cứ lúc nào (kể cả khi đỡ được).";
-  else if (game.phase === "DRAWING" && game.pendingDraw[0] === myId) hint = "Tới lượt bạn bốc bài: bấm Bốc bài để bốc từng lá cho đủ 8 lá.";
+  else if (game.phase === "DRAWING" && game.pendingDraw[0] === myId) hint = "Tới lượt bạn bốc bài: bấm Bốc bài, 3 giây không bấm sẽ tự bốc.";
   else if (game.phase === "DRAWING") hint = "Đang bốc bài: chờ người khác bốc đủ 8 lá…";
   else if (iAmAttacker && game.table.length === 0) hint = "Tới lượt bạn tấn: bấm 1 lá bài để đánh ra.";
   else if (iAmAttacker && allDefended) hint = "Bạn có thể thêm bài cùng hạng, hoặc bấm Kết thúc đợt.";
-  else if (!iAmDefender && game.table.length > 0) hint = "Bạn có thể thêm bài cùng hạng.";
+  else if (!iAmDefender && game.table.length > 0 && me?.hand.some((c) => canAttackCard(game, myId, c))) hint = "Bạn có thể thêm bài cùng hạng.";
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-[#1b3a1b] text-white flex flex-col relative">
@@ -653,7 +675,7 @@ export default function App() {
         <span className="flex items-center gap-3">
           <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 flex items-center justify-center" title="Rời khỏi ván đấu" onClick={() => setLeaveOpen(true)}><X size={18} /></button>
           <span>{game.phase === "FINISHED" ? "Ván đã kết thúc" : `${game.players.find((p) => p.id === game.attackerId)?.name} tấn · ${game.players.find((p) => p.id === game.defenderId)?.name} đỡ`}</span>
-          {isDefending ? <span className="flex items-center gap-1"><Timer size={18} /> Đỡ: {defendSeconds}s</span> : myAttackTurn ? <span className="flex items-center gap-1"><Timer size={18} /> {seconds}s</span> : null}
+          {isDefending ? <span className="flex items-center gap-1"><Timer size={18} /> Đỡ: {defendSeconds}s</span> : myAttackTurn ? <span className="flex items-center gap-1"><Timer size={18} /> {seconds}s</span> : isMyDrawTurn ? <span className="flex items-center gap-1"><Timer size={18} /> Bốc: {drawSeconds}s</span> : null}
           <span className="flex items-center gap-1">Chủ: {SUIT_NAME[game.trumpSuit]} <img src={`/durak/ui/trump_marker_${trumpMarker[game.trumpSuit]}.png`} alt={SUIT_NAME[game.trumpSuit]} className="w-6 h-6" /></span>
           <span>Nọc: {game.drawPile.length} lá</span>
         </span>
@@ -723,6 +745,8 @@ export default function App() {
                 {s.onlineMode && s.onlineRoom?.players.find((x) => x.name === p.name)?.avatar ? <img src={s.onlineRoom!.players.find((x) => x.name === p.name)!.avatar!} alt={p.name} className="w-[100px] h-[100px] rounded-full block" style={game.phase === "FINISHED" && game.loserId === p.id ? { filter: "grayscale(1)", opacity: 0.55 } : undefined} /> : s.onlineMode ? <div className="w-[100px] h-[100px] rounded-full bg-red-900 flex items-center justify-center text-3xl font-black" style={game.phase === "FINISHED" && game.loserId === p.id ? { filter: "grayscale(1)", opacity: 0.55 } : undefined}>{p.name.charAt(0).toUpperCase()}</div> : <img src={`/durak/ui/avatar_${(p.name.replace("Bot ", "") || "1")}.png`} alt={p.name} className="w-[100px] h-[100px] rounded-full block" style={game.phase === "FINISHED" && game.loserId === p.id ? { filter: "grayscale(1)", opacity: 0.55 } : undefined} />}
                 {p.finished && game.finishOrder[0] === p.id && <span className="absolute -top-2 -right-2 bg-yellow-400 text-black font-black text-xs px-2 py-1 rounded-full border-2 border-white shadow flex items-center gap-1"><Crown size={14} /> 1</span>}
                 {p.id === game.defenderId && isDefending && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-400 text-black font-black text-[11px] px-1.5 rounded-full border border-white">{defendSeconds}s</span>}
+                {(game.phase === "ATTACKING" || game.phase === "DEFENDING") && p.id === game.attackerId && <span className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"><span className="flex items-center justify-center rounded-full bg-black/45 p-2"><Swords size={44} className="text-yellow-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]" /></span></span>}
+                {(game.phase === "ATTACKING" || game.phase === "DEFENDING") && p.id === game.defenderId && <span className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"><span className="flex items-center justify-center rounded-full bg-black/45 p-2"><Shield size={44} className="text-sky-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]" /></span></span>}
                 {coinFloats.filter((f) => f.playerId === p.id).map((f) => (
                   <span key={f.key} className={`coin-float ${f.amount >= 0 ? "text-yellow-300" : "text-red-400"}`}>{f.amount >= 0 ? "+" : "−"}{formatBalanceShort(Math.abs(f.amount))}</span>
                 ))}
@@ -766,11 +790,11 @@ export default function App() {
         {s.followWindow && <button className="bg-yellow-400 text-black font-bold px-4 py-2 rounded-full" onClick={() => s.passFollow()}>Không theo</button>}
         <button className="bg-white text-black font-semibold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmAttacker && allDefended)} onClick={s.finishAttackAction}>Kết thúc đợt</button>
         <button className="bg-red-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(iAmDefender && game.table.length > 0)} onClick={s.takeCards}>Lên bài</button>
-        <button className="bg-green-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(game.phase === "DRAWING" && game.pendingDraw[0] === myId && !s.drawing)} onClick={s.drawCards}>Bốc bài</button>
+        <button className="bg-green-500 text-white font-bold px-4 py-2 rounded-full disabled:opacity-40" disabled={!(game.phase === "DRAWING" && game.pendingDraw[0] === myId && !s.drawing)} onClick={s.drawCards}>Bốc bài{isMyDrawTurn ? ` (${drawSeconds}s)` : ""}</button>
       </div>)}
       <div className="flex justify-center items-center flex-wrap shrink-0 px-2 pb-2 gap-2">
       <div className="flex flex-col items-center shrink-0">
-        <div className="relative shrink-0" style={(iAmDefender && isDefending) ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : myAttackTurn ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${(seconds / 30) * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
+        <div className="relative shrink-0" style={(iAmDefender && isDefending) ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : myAttackTurn ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${(seconds / 30) * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : isMyDrawTurn ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${(drawSeconds / 3) * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
           {/* Bong bóng chat của mình: hiện trên avatar, không cần mở hội thoại. */}
           {bubble && (
             <div key={bubble.key} className="absolute bottom-full left-0 mb-2 z-50 max-w-[220px] bg-white text-black text-sm font-medium px-3 py-2 rounded-2xl rounded-bl-sm shadow-lg break-words">{bubble.text}</div>
@@ -786,6 +810,9 @@ export default function App() {
           {me?.finished && game.finishOrder[0] === myId && <span className="absolute -top-3 -right-3 z-50 bg-yellow-400 text-black font-black text-xs px-2 py-1 rounded-full border-2 border-white shadow flex items-center gap-1"><Crown size={14} /> 1</span>}
           {me?.finished && game.finishOrder[0] !== myId && <span className="absolute -top-3 -right-3 z-50 bg-white text-black font-black text-xs px-2 py-1 rounded-full border-2 border-white shadow">{game.finishOrder.indexOf(myId) + 1}</span>}
           {iAmDefender && isDefending && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-400 text-black font-black text-[11px] px-1.5 rounded-full border border-white">{defendSeconds}s</span>}
+          {isMyDrawTurn && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-400 text-black font-black text-[11px] px-1.5 rounded-full border border-white">{drawSeconds}s</span>}
+          {(game.phase === "ATTACKING" || game.phase === "DEFENDING") && myId === game.attackerId && <span className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"><span className="flex items-center justify-center rounded-full bg-black/45 p-2"><Swords size={44} className="text-yellow-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]" /></span></span>}
+          {(game.phase === "ATTACKING" || game.phase === "DEFENDING") && myId === game.defenderId && <span className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"><span className="flex items-center justify-center rounded-full bg-black/45 p-2"><Shield size={44} className="text-sky-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]" /></span></span>}
           {coinFloats.filter((f) => f.playerId === myId).map((f) => (
             <span key={f.key} className={`coin-float ${f.amount >= 0 ? "text-yellow-300" : "text-red-400"}`}>{f.amount >= 0 ? "+" : "−"}{formatBalanceShort(Math.abs(f.amount))}</span>
           ))}
@@ -943,7 +970,7 @@ export default function App() {
           ))}
         </div>
       )}
-      {game.phase === "FINISHED" && (
+      {game.phase === "FINISHED" && s.onlineMode && (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60">
           <div className="max-w-xl mx-4 bg-red-900 border border-yellow-400 rounded-2xl p-6 text-center">
             <img src={game.loserId === myId ? "/durak/ui/you_lose.png" : "/durak/ui/you_won.png"} alt="Kết quả" className="w-48 mx-auto mb-3" />

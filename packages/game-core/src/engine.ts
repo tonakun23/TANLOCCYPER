@@ -148,6 +148,7 @@ export function tableRanks(state: GameState): Set<number> {
 export function canAttackCard(state: GameState, playerId: string, card: Card): boolean {
   const p = playerById(state, playerId);
   if (!p || p.finished || state.phase === "FINISHED") return false;
+  if (state.phase !== "ATTACKING" && state.phase !== "DEFENDING") return false;
   if (playerId === state.defenderId) return false;
   if (state.table.length === 0) return playerId === state.attackerId;
   if (state.table.length >= state.maxAttackCards) return false;
