@@ -5,7 +5,7 @@ import { TableCanvas } from "./components/TableCanvas";
 import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, canAttackCard, cardLabel } from "../../../packages/game-core/src/engine";
 import { TABLE_LEVELS, formatCoins, minBalance, formatBalanceShort, liveTakeTotals, START_BALANCE } from "../../../packages/game-core/src/coins";
 import { X, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, Crown, LogOut, Heart, Search, } from "lucide-react";
-import { playDealSound, playCardSound, playTrumpAceSound, setSoundEnabled, setSoundVolume } from "./game/sound";
+import { playDealSound, playCardSound, playTrumpAceSound, playAttackSound, playDefendSound, setSoundEnabled, setSoundVolume } from "./game/sound";
 const ic = { size: 22, strokeWidth: 2 };
 // Bảng hạng phòng (kiểu ảnh mẫu): mỗi hạng là một khoảng mức cược, phòng thật nào cũng rơi đúng 1 hạng.
 const ROOM_TIERS = [
@@ -173,6 +173,37 @@ export default function App() {
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.takeLog?.length, s.gameNonce]);
+  // Hiệu ứng tấn/đỡ trên lá bài vừa đánh: tìm cặp chứa lá flying trong bàn,
+  // tấn thì kiếm đan chéo vàng, đỡ thì khiên xanh, kèm tiếng kiếm/khiên.
+  // Vị trí tính từ canvas bàn (cùng công thức TableCanvas) rồi đổi sang tọa độ màn hình.
+  const [playFx, setPlayFx] = useState<null | { key: number; kind: "attack" | "defend"; x: number; y: number }>(null);
+  const playFxKeyRef = useRef(0);
+  useEffect(() => {
+    if (!s.flying || !game) return;
+    if (s.flying.key === playFxKeyRef.current) return;
+    playFxKeyRef.current = s.flying.key;
+    let kind: "attack" | "defend" | null = null;
+    let idx = -1;
+    game.table.forEach((pair, i) => {
+      if (pair.attack.id === s.flying!.cardId) { kind = "attack"; idx = i; }
+      else if (pair.defense?.id === s.flying!.cardId) { kind = "defend"; idx = i; }
+    });
+    if (!kind || idx < 0) return;
+    const canvas = document.querySelector(".tan-table-canvas canvas") as HTMLCanvasElement | null;
+    if (!canvas) return;
+    const r = canvas.getBoundingClientRect();
+    const w = r.width, h = r.height;
+    const cx = w / 2, cy = h / 2 + 20;
+    const totalW = game.table.length * 90;
+    const x = cx + 50 - totalW / 2 + idx * 90 + (kind === "defend" ? 20 : 0);
+    const y = kind === "defend" ? cy - 12 : cy - 30;
+    const fx = { key: s.flying.key, kind, x: r.left + x + 32, y: r.top + y + 44 };
+    setPlayFx(fx);
+    if (fx.kind === "attack") playAttackSound(); else playDefendSound();
+    const id = setTimeout(() => setPlayFx((v) => (v?.key === fx.key ? null : v)), 1200);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.flying]);
   const iAmDefender = game?.defenderId === myId;
   const iAmAttacker = game?.attackerId === myId;
   const undefended = game?.table.filter((x) => !x.defense) ?? [];
@@ -655,6 +686,13 @@ export default function App() {
           return nm === "Bot 3" ? "flying-right" : nm === "Bot 2" ? "flying-left" : "flying-top";
         })()}`}>
           <CardView card={parseCard(s.flying.cardId)} />
+        </div>
+      )}
+      {/* Hiệu ứng tấn/đỡ trên lá bài vừa đánh: kiếm đan chéo (tấn) / khiên (đỡ). */}
+      {playFx && (
+        <div className="play-fx" style={{ left: playFx.x, top: playFx.y }}>
+          <span className="play-fx-ring" />
+          {playFx.kind === "attack" ? <Swords size={48} className="text-yellow-300" /> : <Shield size={48} className="text-sky-300" />}
         </div>
       )}
       {/* Hiệu ứng tấn công khi bất kỳ ai ra A chủ: tia vàng xoay + vòng sóng + chữ A CHỦ! */}

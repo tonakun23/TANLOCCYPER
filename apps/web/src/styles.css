@@ -47,6 +47,11 @@ body { background: #1b3a1b; margin: 0; }
 .flying-draw-right { animation-name: fly-draw-right; }
 .flying-draw-bottom { animation-name: fly-draw-bottom; }
 @keyframes fly-draw-top { from { transform: translate(0,0) scale(1); opacity: 1; } to { transform: translate(0,-38vh) scale(.55); opacity: 0; } }
+/* Hiệu ứng tấn/đỡ trên lá bài vừa đánh: icon nảy lên + vòng sóng lan ra, hiện ~1.2 giây. */
+.play-fx { position: fixed; z-index: 70; pointer-events: none; transform: translate(-50%, -50%); animation: play-fx-pop 1.2s ease-out forwards; filter: drop-shadow(0 2px 6px rgba(0,0,0,.7)); }
+.play-fx-ring { position: absolute; inset: -14px; border-radius: 50%; border: 3px solid rgba(250,204,21,.9); animation: play-fx-ring 1.2s ease-out forwards; }
+@keyframes play-fx-pop { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.4) rotate(-12deg); } 15% { opacity: 1; transform: translate(-50%,-50%) scale(1.25) rotate(0deg); } 30% { transform: translate(-50%,-50%) scale(1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.1); } }
+@keyframes play-fx-ring { 0% { opacity: .9; transform: scale(.6); } 100% { opacity: 0; transform: scale(1.6); } }
 /* Số tiền bay lên trên avatar mỗi lần có lượt lên bài (hiện ~3.5 giây rồi mờ dần). */
 .coin-float { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); font-weight: 900; font-size: 15px; text-shadow: 0 1px 3px rgba(0,0,0,.8); animation: coin-float-up 3.5s ease-out forwards; z-index: 60; white-space: nowrap; pointer-events: none; }
 @keyframes coin-float-up { 0% { opacity: 0; transform: translate(-50%, 6px); } 12% { opacity: 1; transform: translate(-50%, 0); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -26px); } }
