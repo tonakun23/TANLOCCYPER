@@ -42,7 +42,7 @@ export default function App() {
   const [followSeconds, setFollowSeconds] = useState(5);
   const [joinCode, setJoinCode] = useState("");
   const [roomTier, setRoomTier] = useState("tap-su");
-  const [starting, setStarting] = useState<null | { step: "count" | "deal" | "trump"; count: number; deal: number }>(null);
+  const [starting, setStarting] = useState<null | { step: "count" | "deal" | "trump" | "move"; count: number; deal: number }>(null);
   const [firstEffect, setFirstEffect] = useState(false);
   const [googleError, setGoogleError] = useState("");
   const [popupBlocked, setPopupBlocked] = useState(false);
@@ -103,7 +103,30 @@ export default function App() {
       const id = setTimeout(() => setStarting((v) => v ? (v.deal >= (game?.players.length || 4) * 8 ? { step: "trump", count: 0, deal: v.deal } : { ...v, deal: v.deal + 1 }) : null), 120);
       return () => clearTimeout(id);
     }
-    const id = setTimeout(() => setStarting(null), 1600);
+    if (starting.step === "trump") {
+      const id = setTimeout(() => setStarting((v) => v ? { ...v, step: "move" } : null), 2000);
+      return () => clearTimeout(id);
+    }
+    const id = setTimeout(() => setStarting(null), 1000);
+    return () => clearTimeout(id);
+  }, [starting]);
+  // Bước bay nọc: đo vị trí nọc thật trên canvas (cùng công thức TableCanvas)
+  // để đáp đúng góc trên trái của bàn; không đo được thì đáp góc trái màn hình.
+  const [stockTarget, setStockTarget] = useState<{ dx: number; dy: number } | null>(null);
+  const [stockMoved, setStockMoved] = useState(false);
+  useEffect(() => {
+    if (starting?.step !== "move") { if (!starting) { setStockTarget(null); setStockMoved(false); } return; }
+    let tx = 28, ty = 180;
+    const canvas = document.querySelector(".tan-table-canvas canvas") as HTMLCanvasElement | null;
+    if (canvas) {
+      const r = canvas.getBoundingClientRect();
+      const w = r.width, h = r.height;
+      const cx = w / 2, cy = h / 2 + 20;
+      const rx = Math.min(620, w * 0.49), ry = Math.max(60, h / 2 - 100);
+      tx = r.left + (cx - rx + 16); ty = r.top + (cy - ry + 16);
+    }
+    setStockTarget({ dx: tx - window.innerWidth / 2 + 32, dy: ty - window.innerHeight / 2 + 44 });
+    const id = setTimeout(() => setStockMoved(true), 60);
     return () => clearTimeout(id);
   }, [starting]);
   const startBotGame = () => { s.setPlayerCount(4); s.startGame(); setStarting({ step: "count", count: 3, deal: 0 }); };
@@ -646,7 +669,7 @@ export default function App() {
           Mình (dưới) -> Bot3 (phải) -> Bot1 (trên) -> Bot2 (trái) -> Mình.
           Người đỡ luôn là người ngồi kế tiếp sau người tấn theo vòng này. */}
       <div className="flex-1 min-h-0 w-full relative flex flex-col">
-        <TableCanvas game={game} />
+        <TableCanvas game={game} hideStock={starting !== null} />
         {(() => {
           const myIdx = game.players.findIndex((pl) => pl.id === myId);
           const opps = s.onlineMode
@@ -802,8 +825,10 @@ export default function App() {
           </div>
         </div>
       )}
-      {/* Bắt đầu ván: đếm 1-2-3-Bắt đầu, phát bài lần lượt từng người, xong mới chọn chất chủ.
-          Nền trong suốt để thấy bàn đấu phía sau; bộ bài hiện giữa bàn rồi từng lá bay ra các phía. */}
+      {/* Bắt đầu ván: đếm 1-2-3, phát đủ 8 lá mỗi người (lúc này nọc + lá chủ
+          trên bàn bị giấu), rồi lật lá chủ ngửa cho cả làng xem, cuối cùng bay
+          nọc kèm lá chủ từ giữa bàn về đúng góc trên trái của bàn rồi mới vào ván.
+          Nền trong suốt để thấy bàn đấu phía sau. */}
       {starting && (
         <div className="absolute inset-0 z-[65] flex flex-col items-center justify-center">
           {starting.step === "count" && <div className="font-black text-8xl text-yellow-300" style={{ textShadow: "0 2px 16px rgba(0,0,0,.9)" }}>{starting.count}</div>}
@@ -847,10 +872,27 @@ export default function App() {
           })()}
           {starting.step === "trump" && game && (
             <div className="text-center">
-              <div className="font-black text-4xl text-yellow-300" style={{ textShadow: "0 2px 16px rgba(0,0,0,.9)" }}>BẮT ĐẦU!</div>
-              <div className="flex items-center justify-center gap-2 mt-4 text-xl font-bold" style={{ textShadow: "0 2px 8px rgba(0,0,0,.9)" }}>Chất chủ: {SUIT_NAME[game.trumpSuit]} <img src={`/durak/ui/trump_marker_${trumpMarker[game.trumpSuit]}.png`} alt={SUIT_NAME[game.trumpSuit]} className="w-10 h-10" /></div>
+              <div className="flex justify-center" style={{ transform: "scale(1.35)", transformOrigin: "center bottom" }}>
+                <CardView card={parseCard(game.trumpCardId)} />
+              </div>
+              <div className="font-black text-3xl text-yellow-300 mt-5" style={{ textShadow: "0 2px 12px rgba(0,0,0,.9)" }}>LÁ CHỦ!</div>
+              <div className="flex items-center justify-center gap-2 mt-2 text-xl font-bold" style={{ textShadow: "0 2px 8px rgba(0,0,0,.9)" }}>Chất chủ: {SUIT_NAME[game.trumpSuit]} <img src={`/durak/ui/trump_marker_${trumpMarker[game.trumpSuit]}.png`} alt={SUIT_NAME[game.trumpSuit]} className="w-10 h-10" /></div>
             </div>
           )}
+          {starting.step === "move" && game && (() => {
+            const c = parseCard(game.trumpCardId);
+            const r = c.rank === 14 ? "A" : c.rank === 11 ? "J" : c.rank === 12 ? "Q" : c.rank === 13 ? "K" : String(c.rank);
+            const file = `${r}${c.suit}.png`;
+            const t = stockMoved && stockTarget ? stockTarget : { dx: 0, dy: 0 };
+            return (
+              <div className="absolute" style={{ left: "50%", top: "50%", width: 64, height: 88, transform: `translate(calc(-50% + ${t.dx}px), calc(-50% + ${t.dy}px))`, transition: "transform 0.9s ease-in-out" }}>
+                <img src={`/durak/cards/${file}`} alt="" draggable={false} style={{ position: "absolute", left: 0, top: 0, width: 64, height: 88, borderRadius: 6 }} />
+                {[0, 1, 2].map((j) => (
+                  <img key={j} src="/durak/cards/back.png" alt="" draggable={false} style={{ position: "absolute", left: 6 + j * 3, top: -4 - j * 2, width: 64, height: 88, borderRadius: 6 }} />
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
       {/* Lên bài: các lá vừa lấy bay vào tay mình. */}

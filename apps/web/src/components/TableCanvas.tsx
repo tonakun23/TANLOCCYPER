@@ -62,7 +62,7 @@ function drawCard(container: PIXI.Container, x: number, y: number, card: Card | 
   }
 }
 
-function drawTable(app: PIXI.Application, game: GameState, textures?: Map<string, PIXI.Texture>) {
+function drawTable(app: PIXI.Application, game: GameState, textures?: Map<string, PIXI.Texture>, hideStock?: boolean) {
   app.stage.removeChildren();
   const w = app.screen.width, h = app.screen.height;
   // Responsive full màn hình: bàn tự giãn theo khung chứa, không còn khung cố định.
@@ -83,18 +83,22 @@ function drawTable(app: PIXI.Application, game: GameState, textures?: Map<string
   // để avatar nằm trái, thẳng hàng với đúng bộ bài của người đó + số lá.
   void w; void textures;
   // Nọc ở góc trên trái trong bàn (không còn ở giữa trái, tránh bị bài bot trái đè lên).
-  const pileX = cx - rx + 16, pileY = cy - ry + 16;
-  if (game.drawPile.length > 0) {
-    const trump = game.drawPile.find((c) => c.id === game.trumpCardId) || game.drawPile[game.drawPile.length - 1];
-    drawCard(app.stage, pileX, pileY, trump, false, textures);
-    const backs = Math.min(3, game.drawPile.length - 1);
-    for (let j = 0; j < backs; j++) drawCard(app.stage, pileX + 6 + j * 3, pileY - 4 - j * 2, null, true, textures);
-    const count = new PIXI.Text({ text: `Nọc: ${game.drawPile.length} lá`, style: { fontSize: 16, fill: 0xfde68a, fontWeight: "bold" } });
-    count.x = pileX - 4; count.y = pileY + 94; app.stage.addChild(count);
-    // Đã bỏ chữ "Chủ:" dưới nọc: lá chủ lật ngửa dưới chồng bài đã nói rõ chất chủ.
-  } else {
-    const emptyPile = new PIXI.Text({ text: "Hết nọc", style: { fontSize: 16, fill: 0xfecaca } });
-    emptyPile.x = pileX; emptyPile.y = cy; app.stage.addChild(emptyPile);
+  // Khi đang chạy sequence bắt đầu ván (đếm/chia/lật chủ/bay nọc) thì giấu nọc:
+  // lá chủ chỉ được lộ sau khi chia đủ 8 lá, rồi overlay tự bay nọc về đúng góc này.
+  if (!hideStock) {
+    const pileX = cx - rx + 16, pileY = cy - ry + 16;
+    if (game.drawPile.length > 0) {
+      const trump = game.drawPile.find((c) => c.id === game.trumpCardId) || game.drawPile[game.drawPile.length - 1];
+      drawCard(app.stage, pileX, pileY, trump, false, textures);
+      const backs = Math.min(3, game.drawPile.length - 1);
+      for (let j = 0; j < backs; j++) drawCard(app.stage, pileX + 6 + j * 3, pileY - 4 - j * 2, null, true, textures);
+      const count = new PIXI.Text({ text: `Nọc: ${game.drawPile.length} lá`, style: { fontSize: 16, fill: 0xfde68a, fontWeight: "bold" } });
+      count.x = pileX - 4; count.y = pileY + 94; app.stage.addChild(count);
+      // Đã bỏ chữ "Chủ:" dưới nọc: lá chủ lật ngửa dưới chồng bài đã nói rõ chất chủ.
+    } else {
+      const emptyPile = new PIXI.Text({ text: "Hết nọc", style: { fontSize: 16, fill: 0xfecaca } });
+      emptyPile.x = pileX; emptyPile.y = cy; app.stage.addChild(emptyPile);
+    }
   }
   // Bài trên bàn ở giữa
   if (!game.table.length) {
@@ -114,12 +118,14 @@ function drawTable(app: PIXI.Application, game: GameState, textures?: Map<string
   }
 }
 
-export function TableCanvas({ game }: { game: GameState }) {
+export function TableCanvas({ game, hideStock }: { game: GameState; hideStock?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const appRef = useRef<PIXI.Application | null>(null);
   const texturesRef = useRef<Map<string, PIXI.Texture> | undefined>(undefined);
   const gameRef = useRef(game);
   gameRef.current = game;
+  const hideStockRef = useRef(hideStock);
+  hideStockRef.current = hideStock;
   useEffect(() => {
     let cancelled = false;
     let app: PIXI.Application | null = null;
@@ -134,18 +140,18 @@ export function TableCanvas({ game }: { game: GameState }) {
       const textures = await loadTextures();
       if (cancelled) return;
       texturesRef.current = textures;
-      drawTable(app, gameRef.current, textures);
+      drawTable(app, gameRef.current, textures, hideStockRef.current);
       // Bàn full màn: canvas co giãn theo khung chứa, vẽ lại khi đổi kích thước.
       observer = new ResizeObserver(() => {
         if (!app || !el) return;
         app.renderer.resize(Math.max(320, el.clientWidth), Math.max(240, el.clientHeight));
-        drawTable(app, gameRef.current, texturesRef.current);
+        drawTable(app, gameRef.current, texturesRef.current, hideStockRef.current);
       });
       observer.observe(el);
     })();
     return () => { cancelled = true; observer?.disconnect(); app?.destroy(true); appRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useEffect(() => { if (appRef.current) drawTable(appRef.current, game, texturesRef.current); }, [game]);
-  return <div ref={ref} className="flex-1 min-h-0 w-full [&>canvas]:block [&>canvas]:w-full [&>canvas]:h-full" />;
+  useEffect(() => { if (appRef.current) drawTable(appRef.current, game, texturesRef.current, hideStock); }, [game, hideStock]);
+  return <div ref={ref} className="tan-table-canvas flex-1 min-h-0 w-full [&>canvas]:block [&>canvas]:w-full [&>canvas]:h-full" />;
 }
