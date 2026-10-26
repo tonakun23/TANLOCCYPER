@@ -54,6 +54,8 @@ export default function App() {
     if (s.onlineMode && game && game.version === 1 && !starting) setStarting({ step: "count", count: 3, deal: 0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.version, s.onlineMode]);
+  // Rời màn ván đấu thì xóa đếm/phát bài cũ, tránh lọt sang ván sau.
+  useEffect(() => { if (s.screen !== "game") setStarting(null); }, [s.screen]);
   // Về nhất: hiện hiệu ứng 4 giây rồi ẩn, vương miện số 1 vẫn ở lại trên avatar.
   const isFirst = !!game && game.finishOrder[0] === myId;
   useEffect(() => {
@@ -362,14 +364,14 @@ export default function App() {
     return (
       <div className="tan-home h-screen w-screen overflow-hidden text-white relative">
         {/* Adam (trai) va Chua cung cac thien than (phai) giay tay ve la bai o giua. */}
-        <img src="/login/adam.png" alt="" className="absolute left-0 bottom-0 pointer-events-none select-none" style={{ height: "min(88vh, 780px)", maxWidth: "58vw", left: "-14vw", objectFit: "contain", objectPosition: "left bottom", zIndex: 0 }} />
-        <img src="/login/god.png" alt="" className="absolute right-0 bottom-0 pointer-events-none select-none" style={{ height: "min(88vh, 780px)", maxWidth: "58vw", right: "-14vw", objectFit: "contain", objectPosition: "right bottom", zIndex: 0 }} />
+        <img src="/login/adam.png" alt="" className="absolute left-0 bottom-0 pointer-events-none select-none" style={{ height: "min(88vh, 780px)", maxWidth: "58vw", left: "-22vw", objectFit: "contain", objectPosition: "left bottom", zIndex: 0 }} />
+        <img src="/login/god.png" alt="" className="absolute right-0 bottom-0 pointer-events-none select-none" style={{ height: "min(88vh, 780px)", maxWidth: "58vw", right: "-22vw", objectFit: "contain", objectPosition: "right bottom", zIndex: 0 }} />
         <div className="relative flex flex-col items-center justify-center h-full" style={{ gap: 20, padding: 24, zIndex: 10 }}>
           <div style={{ textAlign: "center", textShadow: "0 2px 12px rgba(0,0,0,.6)" }}>
             <div style={{ fontSize: 46, fontWeight: 900, letterSpacing: 2 }}>TẤN ONLINE</div>
           </div>
           {/* La At Co to, lo lung giua hai ban tay; nut dang nhap la mot phan cua la bai. */}
-          <div className="login-card-float" style={{ background: "#fff", color: "#111", borderRadius: 18, height: "min(50vh, 400px)", aspectRatio: "5 / 7", maxWidth: "84vw", display: "flex", flexDirection: "column", padding: 16, boxSizing: "border-box" }}>
+          <div className="login-card-float" style={{ background: "#fff", color: "#111", borderRadius: 18, height: "min(46vh, 360px)", aspectRatio: "5 / 7", maxWidth: "84vw", display: "flex", flexDirection: "column", padding: 16, boxSizing: "border-box" }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1 }}>
               <span style={{ fontSize: 30, fontWeight: 900, color: "#dc2626" }}>A</span>
               <svg viewBox="0 0 24 24" style={{ width: 20, height: 20 }}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="#dc2626" /></svg>
@@ -698,35 +700,66 @@ export default function App() {
           </div>
         </div>
       )}
-      {/* Bắt đầu ván: đếm 1-2-3-Bắt đầu, phát bài lần lượt từng người, xong mới chọn chất chủ. */}
+      {/* Bắt đầu ván: đếm 1-2-3-Bắt đầu, phát bài lần lượt từng người, xong mới chọn chất chủ.
+          Nền trong suốt để thấy bàn đấu phía sau; bộ bài hiện giữa bàn rồi từng lá bay ra các phía. */}
       {starting && (
-        <div className="absolute inset-0 z-[65] flex flex-col items-center justify-center bg-[#1b3a1b]">
-          {starting.step === "count" && <div className="font-black text-8xl text-yellow-300">{starting.count}</div>}
-          {starting.step === "count" && <div className="text-white font-semibold mt-2">Chuẩn bị phát bài…</div>}
-          {starting.step === "deal" && (
-            <div className="text-center">
-              <div className="font-black text-3xl text-yellow-300 mb-4">Đang phát bài…</div>
-              <div className="flex gap-6 justify-center">
-                {(game?.players || []).map((pl, si) => {
-                  const totalPlayers = game?.players.length || 1;
-                  const countForSeat = starting.deal > si ? Math.min(8, Math.floor((starting.deal - 1 - si) / totalPlayers) + 1) : 0;
-                  const seat = pl.name;
-                  return (
-                    <div key={seat} className="text-center">
-                      <div className="flex -space-x-3 justify-center mb-2 h-[50px]">
-                        {Array.from({ length: countForSeat }, (_, i) => <img key={i} src="/durak/cards/back.png" alt="" className="w-[36px] h-[50px] rounded" />)}
+        <div className="absolute inset-0 z-[65] flex flex-col items-center justify-center">
+          {starting.step === "count" && <div className="font-black text-8xl text-yellow-300" style={{ textShadow: "0 2px 16px rgba(0,0,0,.9)" }}>{starting.count}</div>}
+          {starting.step === "count" && <div className="text-white font-semibold mt-2" style={{ textShadow: "0 2px 8px rgba(0,0,0,.9)" }}>Chuẩn bị phát bài…</div>}
+          {starting.step === "deal" && game && (() => {
+            const totalPlayers = game.players.length;
+            // Lá thứ d (1-based) phát cho ghế (d-1) % totalPlayers, bay ra đúng phía ghế đó.
+            const dealCorner = (pl: { id: string; name: string }) => {
+              if (pl.id === myId) return "bottom";
+              if (s.onlineMode) {
+                const n = totalPlayers;
+                const myIdx = game.players.findIndex((x) => x.id === myId);
+                const idx = game.players.findIndex((x) => x.id === pl.id);
+                const off = (idx - myIdx + n) % n;
+                if (n === 2) return "top";
+                if (n === 3) return off === 1 ? "right" : "left";
+                return off === 1 ? "right" : off === 2 ? "top" : "left";
+              }
+              return pl.name === "Bot 3" ? "right" : pl.name === "Bot 2" ? "left" : "top";
+            };
+            return (
+              <div className="text-center">
+                {/* Bộ bài ở giữa bàn. */}
+                <div className="relative mx-auto mb-4" style={{ width: 72, height: 100 }}>
+                  <img src="/durak/cards/back.png" alt="" className="absolute rounded" style={{ width: 72, height: 100, left: -6, top: -4, opacity: 0.7 }} />
+                  <img src="/durak/cards/back.png" alt="" className="absolute rounded" style={{ width: 72, height: 100, left: -3, top: -2, opacity: 0.85 }} />
+                  <img src="/durak/cards/back.png" alt="" className="absolute rounded shadow-2xl" style={{ width: 72, height: 100, left: 0, top: 0 }} />
+                </div>
+                <div className="font-black text-3xl text-yellow-300 mb-4" style={{ textShadow: "0 2px 12px rgba(0,0,0,.9)" }}>Đang phát bài…</div>
+                <div className="flex gap-6 justify-center">
+                  {game.players.map((pl, si) => {
+                    const countForSeat = starting.deal > si ? Math.min(8, Math.floor((starting.deal - 1 - si) / totalPlayers) + 1) : 0;
+                    return (
+                      <div key={pl.name} className="text-center">
+                        <div className="flex -space-x-3 justify-center mb-2 h-[50px]">
+                          {Array.from({ length: countForSeat }, (_, i) => <img key={i} src="/durak/cards/back.png" alt="" className="w-[36px] h-[50px] rounded" />)}
+                        </div>
+                        <div className="text-sm font-semibold" style={{ textShadow: "0 1px 6px rgba(0,0,0,.9)" }}>{pl.name}: {countForSeat}/8</div>
                       </div>
-                      <div className="text-sm font-semibold">{seat}: {countForSeat}/8</div>
+                    );
+                  })}
+                </div>
+                {/* Từng lá bay từ giữa bàn ra đúng phía người nhận. */}
+                {Array.from({ length: starting.deal }, (_, i) => i + 1).map((d) => {
+                  const pl = game.players[(d - 1) % totalPlayers];
+                  return (
+                    <div key={d} className={`flying-draw flying-draw-${dealCorner(pl)}`}>
+                      <img src="/durak/cards/back.png" alt="" className="w-[72px] h-[100px] rounded-[10px]" />
                     </div>
                   );
                 })}
               </div>
-            </div>
-          )}
+            );
+          })()}
           {starting.step === "trump" && game && (
             <div className="text-center">
-              <div className="font-black text-4xl text-yellow-300">BẮT ĐẦU!</div>
-              <div className="flex items-center justify-center gap-2 mt-4 text-xl font-bold">Chất chủ: {SUIT_NAME[game.trumpSuit]} <img src={`/durak/ui/trump_marker_${trumpMarker[game.trumpSuit]}.png`} alt={SUIT_NAME[game.trumpSuit]} className="w-10 h-10" /></div>
+              <div className="font-black text-4xl text-yellow-300" style={{ textShadow: "0 2px 16px rgba(0,0,0,.9)" }}>BẮT ĐẦU!</div>
+              <div className="flex items-center justify-center gap-2 mt-4 text-xl font-bold" style={{ textShadow: "0 2px 8px rgba(0,0,0,.9)" }}>Chất chủ: {SUIT_NAME[game.trumpSuit]} <img src={`/durak/ui/trump_marker_${trumpMarker[game.trumpSuit]}.png`} alt={SUIT_NAME[game.trumpSuit]} className="w-10 h-10" /></div>
             </div>
           )}
         </div>
