@@ -350,7 +350,6 @@ export default function App() {
     const seats = Array.from({ length: maxSeats }, (_, i) => roomPlayers[i] || null);
     const selfRoom = roomPlayers.find((pl) => pl.id === s.onlineMyLobbyId);
     const isHost = !!selfRoom?.isHost;
-    const canStart = isHost && roomPlayers.length >= 2 && roomPlayers.every((pl) => pl.ready);
     return (
       <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
         <div className="tan-rooms-top">
@@ -368,20 +367,9 @@ export default function App() {
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
             {seats.map((pl, i) => pl ? (
               <div key={pl.id} style={{ textAlign: "center", width: 110 }}>
-                {pl.avatar ? <img src={pl.avatar} alt={pl.name} className="w-[64px] h-[64px] rounded-full mx-auto" style={{ filter: pl.ready ? "none" : "grayscale(1)", opacity: pl.ready ? 1 : 0.55 }} /> : <div className="tan-avatar" style={{ margin: "0 auto", width: 64, height: 64, fontSize: 24, filter: pl.ready ? "none" : "grayscale(1)", opacity: pl.ready ? 1 : 0.55 }}>{pl.name.charAt(0).toUpperCase()}</div>}
+                {pl.avatar ? <img src={pl.avatar} alt={pl.name} className="w-[64px] h-[64px] rounded-full mx-auto" /> : <div className="tan-avatar" style={{ margin: "0 auto", width: 64, height: 64, fontSize: 24 }}>{pl.name.charAt(0).toUpperCase()}</div>}
                 <div style={{ fontWeight: 700, marginTop: 6 }}>{pl.name}{pl.isHost ? " (chủ phòng)" : ""}</div>
                 <div style={{ fontSize: 12, color: pl.online ? "#4ade80" : "#f87171" }}>{pl.online ? "Đang online" : "Mất kết nối"}</div>
-                {pl.id === s.onlineMyLobbyId ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center", marginTop: 8 }}>
-                    <button className={pl.ready ? "bg-green-500 text-white font-bold px-4 py-1 rounded-full" : "bg-white text-black font-bold px-4 py-1 rounded-full"} onClick={() => s.onlineReady(!pl.ready)}>{pl.ready ? "Đã sẵn sàng ✓" : "Sẵn sàng"}</button>
-                    {pl.isHost && <button className="bg-yellow-400 text-black font-bold px-6 py-2 rounded-full disabled:opacity-40" disabled={!canStart} onClick={() => s.onlineStart()}>Bắt đầu</button>}
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center", marginTop: 8 }}>
-                    <button disabled className={pl.ready ? "bg-green-500 text-white font-bold px-4 py-1 rounded-full opacity-90" : "bg-gray-400 text-white font-bold px-4 py-1 rounded-full opacity-70"} style={{ cursor: "default" }}>{pl.ready ? "Đã sẵn sàng ✓" : "Chưa sẵn sàng"}</button>
-                    {pl.isHost && <button disabled className="bg-yellow-400 text-black font-bold px-6 py-2 rounded-full opacity-40" style={{ cursor: "default" }}>Bắt đầu</button>}
-                  </div>
-                )}
               </div>
             ) : (
               <div key={i} style={{ textAlign: "center", width: 110, opacity: 0.7 }}>
@@ -392,7 +380,7 @@ export default function App() {
             ))}
           </div>
           <div style={{ textAlign: "center" }}>
-            <p style={{ color: "#ffd97a", fontSize: 13 }}>Trò chơi bắt đầu khi đủ ít nhất 2 người, tất cả đã ấn Sẵn sàng và chủ phòng ấn Bắt đầu. Khi đó mới đếm 3-2-1, phát bài lần lượt rồi mới chọn chất chủ.</p>
+            <p style={{ color: "#ffd97a", fontSize: 13 }}>Đủ 2 người là tự động đếm 3-2-1 rồi phát bài, không cần bấm gì thêm.</p>
             {s.onlineError && <p style={{ color: "#f87171", fontSize: 13, marginTop: 4 }}>{s.onlineError}</p>}
             <p style={{ color: "rgba(255,255,255,.6)", fontSize: 13, marginTop: 4 }}>Kết nối: {s.onlineWsStatus} · Phòng thật qua WebSocket, không có bot. Muốn chơi ngay một mình, bấm Chơi với bot.</p>
             <button className="tan-pill" style={{ background: "#7c3aed", color: "#fff", marginTop: 12 }} onClick={startBotGame}>Chơi với bot</button>

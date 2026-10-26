@@ -144,6 +144,22 @@ function broadcastGame(lobby) {
 function broadcast(lobby, obj) {
   for (const p of lobby.players) sendTo(lobby, p, obj);
 }
+// Tự bắt đầu ván khi đủ 2 người (phòng chờ không còn nút Sẵn sàng/Bắt đầu).
+// Trả về true nếu vừa bắt đầu ván. Thiếu xu vào bàn thì báo lỗi cho cả phòng
+// (không im lặng treo phòng) và chưa bắt đầu.
+function startLobbyGame(lobby) {
+  if (lobby.game || lobby.players.length < 2) return false;
+  const poor = lobby.players.find((p) => (lobby.balances.get(playerKey(p)) ?? START_BALANCE) < minBalance(lobby.level));
+  if (poor) {
+    broadcast(lobby, { type: "error", code: "NOT_ENOUGH_BALANCE", message: `${poor.name} chưa đủ xu vào bàn mức ${formatCoins(lobby.level)} (cần tối thiểu ${formatCoins(minBalance(lobby.level))})` });
+    return false;
+  }
+  const names = lobby.players.map((p) => p.name);
+  const game = createGame({ playerCount: lobby.players.length, playerNames: names, allowTransfer: false });
+  lobby.players.forEach((p, i) => { p.engineId = game.players[i].id; });
+  lobby.game = game; lobby.pending = null; lobby.settlement = null;
+  broadcastRoom(lobby); broadcastGame(lobby); return true;
+}
 function addablePlayers(lobby, excludeEngineIds) {
   if (!lobby.game) return [];
   const out = [];
@@ -285,7 +301,9 @@ wss.on("connection", (ws) => {
         const pl = { id: randomUUID(), token: randomUUID(), name: (session?.name || msg.name || "Bạn").toString().slice(0, 30), avatar: session?.avatar || msg.avatar || null, googleId: session?.googleId || null, ready: false, socket: ws, engineId: null };
         lb.players.push(pl); attach(lb, pl);
         ws.send(JSON.stringify({ type: "joined", playerId: pl.id, token: pl.token, code: lb.code, isHost: false }));
-        broadcastRoom(lb); return;
+        broadcastRoom(lb);
+        // Đủ 2 người là tự vào ván, không chờ bấm Sẵn sàng/Bắt đầu.
+        startLobbyGame(lb); return;
       }
       if (!lobby || !player) return err("NOT_IN_ROOM", "Chưa vào phòng");
       if (msg.type === "ready") {
@@ -293,18 +311,11 @@ wss.on("connection", (ws) => {
         player.ready = !!msg.ready; broadcastRoom(lobby); return;
       }
       if (msg.type === "start") {
+        // Đường cũ cho client bản cũ còn nút Bắt đầu: vẫn chỉ chủ phòng được bấm,
+        // nhưng không còn yêu cầu Sẵn sàng nữa (đủ 2 người + đủ xu là bắt đầu).
         if (player.id !== lobby.hostId) return err("NOT_HOST", "Chỉ chủ phòng mới bắt đầu được");
         if (lobby.game) return err("GAME_ALREADY_STARTED", "Ván đã bắt đầu");
-        if (lobby.players.length < 2) return err("NOT_ENOUGH_PLAYERS", "Cần ít nhất 2 người");
-        if (!lobby.players.every((p) => p.ready)) return err("NOT_ALL_READY", "Chưa phải mọi người đều sẵn sàng");
-        // Kiểm tra vào bàn: mỗi người cần số dư tối thiểu 10 lần mức bàn.
-        const poor = lobby.players.find((p) => (lobby.balances.get(playerKey(p)) ?? START_BALANCE) < minBalance(lobby.level));
-        if (poor) return err("NOT_ENOUGH_BALANCE", `${poor.name} chưa đủ xu vào bàn mức ${formatCoins(lobby.level)} (cần tối thiểu ${formatCoins(minBalance(lobby.level))})`);
-        const names = lobby.players.map((p) => p.name);
-        const game = createGame({ playerCount: lobby.players.length, playerNames: names, allowTransfer: false });
-        lobby.players.forEach((p, i) => { p.engineId = game.players[i].id; });
-        lobby.game = game; lobby.pending = null; lobby.settlement = null;
-        broadcastRoom(lobby); broadcastGame(lobby); return;
+        startLobbyGame(lobby); return;
       }
       if (msg.type === "command") {
         if (!lobby.game) return err("GAME_NOT_STARTED", "Ván chưa bắt đầu");
