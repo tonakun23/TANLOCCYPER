@@ -336,7 +336,7 @@ export default function App() {
               })}
             </div>
           </div>
-          <p style={{ color: "rgba(255,255,255,.6)", fontSize: 13, marginTop: 10 }}>Vào phòng chỉ cần 1 người: bạn vào phòng chờ trước, người khác bấm Vào từ bảng này (hoặc nhập mã phòng) để đủ người rồi cùng sẵn sàng, đủ 2 người mới bắt đầu được.</p>
+          <p style={{ color: "rgba(255,255,255,.6)", fontSize: 13, marginTop: 10 }}>Vào phòng chỉ cần 1 người: bạn vào phòng chờ trước, người khác bấm Vào từ bảng này (hoặc nhập mã phòng), đủ 2 người là tự vào ván, không cần bấm gì thêm.</p>
         </div>
         <div style={{ flex: 1 }} />
         <p style={{ textAlign: "center", color: "rgba(255,255,255,.6)", fontSize: 13, paddingBottom: 12 }}>Xu trong Tấn chỉ là điểm thưởng, không nạp/rút hay đổi tiền thật.</p>
@@ -506,7 +506,7 @@ export default function App() {
               <p className="mt-2"><b>Chia bài:</b> 2–4 người, mỗi người 8 lá, bộ Tây 52 lá không Joker. Lá cuối nọc lật ngửa làm chất chủ (ví dụ Cơ là chủ thì Cơ mạnh nhất).</p>
               <p className="mt-2"><b>Người tấn đầu:</b> người có lá chủ nhỏ nhất. Sau đó tấn theo vòng ngược chiều kim đồng hồ: Mình → Bot 3 (phải) → Bot 1 (trên) → Bot 2 (trái) → Mình; người vừa đỡ xong sẽ tấn tiếp, người ngồi kế tiếp sau người tấn là người đỡ.</p>
               <p className="mt-2"><b>Tấn:</b> tấn 1 lá đầu, sau đó chỉ được thêm lá cùng hạng với lá đã có trên bàn. Một đợt tối đa 6 lá, và không vượt số lá người đỡ có lúc đợt bắt đầu.</p>
-              <p className="mt-2"><b>Đỡ:</b> đỡ bằng lá cùng chất cao hơn, hoặc bằng lá chủ nếu lá tấn không phải chủ. Lá tấn là chủ thì chỉ đỡ bằng lá chủ cao hơn. Người đỡ có 30 giây, quanh avatar có vòng sáng đếm ngược, hết giờ tự lên bài.</p><p className="mt-2"><b>Chơi với bot / chơi với bạn:</b> Chơi với bot là chơi ngay với bot lấp ghế. Chơi với bạn là chơi với người thật, không có bot: vào phòng chờ, mã phòng hiện giữa bàn, mọi người ấn Sẵn sàng rồi chủ phòng ấn Bắt đầu, sau đó đếm 1-2-3-Bắt đầu và phát bài lần lượt rồi mới chọn chất chủ. Người về nhất (đánh hết bài đầu tiên) được vương miện số 1 trên avatar, và khi đã xong ván thì không còn nút chọn nữa vì không cần đấu nữa.</p>
+              <p className="mt-2"><b>Đỡ:</b> đỡ bằng lá cùng chất cao hơn, hoặc bằng lá chủ nếu lá tấn không phải chủ. Lá tấn là chủ thì chỉ đỡ bằng lá chủ cao hơn. Người đỡ có 30 giây, quanh avatar có vòng sáng đếm ngược, hết giờ tự lên bài.</p><p className="mt-2"><b>Chơi với bot / chơi với bạn:</b> Chơi với bot là chơi ngay với bot lấp ghế. Chơi với bạn là chơi với người thật, không có bot: vào phòng chờ, mã phòng hiện giữa bàn, đủ 2 người là tự đếm 1-2-3 rồi phát bài lần lượt rồi mới chọn chất chủ. Người về nhất (đánh hết bài đầu tiên) được vương miện số 1 trên avatar, và khi đã xong ván thì không còn nút chọn nữa vì không cần đấu nữa.</p>
               <p className="mt-2"><b>Tấn cũng tính giờ:</b> người tấn có 30 giây, quanh avatar có vòng vàng đếm ngược, tấn lá mới thì reset lại 30 giây. Hết giờ tấn mà chưa đánh thì tự đánh lá yếu nhất có thể đánh được.</p>
               <p className="mt-2"><b>Lên bài:</b> không đỡ được (hoặc muốn lên) thì bấm Lên bài, nhận hết bài trên bàn, mất lượt tấn tiếp theo.</p>
               <p className="mt-2"><b>Bốc bài:</b> đỡ thành công và kết thúc đợt thì mọi người bốc từng lá cho đủ 8 lá, theo thứ tự người tấn, người thêm, người đỡ cuối. Hết nọc thì ai hết bài trước là xong, người còn bài cuối cùng thua.</p>
