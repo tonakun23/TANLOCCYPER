@@ -329,7 +329,7 @@ export default function App() {
         <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle">f</span></button>
         <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><Users {...ic} /></span></button>
         <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><Backpack {...ic} /></span></button>
-        <button className="tan-choose" onClick={() => { setSearchOpen(true); void s.loadPublicRooms(); }} aria-label="Tìm phòng"><Search size={22} /><br />TÌM<br />KIẾM</button>
+        <button className="tan-choose flex items-center justify-center" onClick={() => { setSearchOpen(true); void s.loadPublicRooms(); }} aria-label="Tìm phòng"><Search size={28} /></button>
       </div>
     </div>
   );
@@ -635,24 +635,11 @@ export default function App() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setSearchOpen(false)}>
             <div className="w-full max-w-lg max-h-[85vh] overflow-auto bg-red-900 border border-yellow-400 rounded-2xl p-5 text-sm leading-relaxed" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center mb-3"><h2 className="font-bold text-lg">Tìm phòng</h2><button onClick={() => setSearchOpen(false)} aria-label="Đóng tìm phòng"><X size={18} /></button></div>
-              <input className="w-full bg-white/10 text-white placeholder:text-white/50 px-4 py-3 rounded-full font-bold outline-none" placeholder="Nhập mã phòng, ví dụ 148123" value={searchText} onChange={(e) => setSearchText(e.target.value.replace(/\D/g, "").slice(0, 6))} />
-              <div className="mt-3 flex justify-end"><button className="text-yellow-200 font-bold" onClick={() => void s.loadPublicRooms()}>Làm mới</button></div>
-              <div className="mt-2 space-y-2">
-                {s.publicRooms.filter((r) => r.code.includes(searchText)).map((r) => (
-                  <div key={r.code} className="flex items-center justify-between gap-2 bg-black/30 rounded-xl px-4 py-2">
-                    <div><span className="font-black text-yellow-200">{r.code}</span><span className="opacity-80"> · {r.bet} · {r.playerCount}/{r.maxPlayers} người{r.hostName ? ` · ${r.hostName}` : ""}</span></div>
-                    <button className="bg-teal-600 text-white font-bold px-4 py-1 rounded-full shrink-0" onClick={() => s.onlineJoinRoom(r.code)}>Tham gia</button>
-                  </div>
-                ))}
-                {s.publicRooms.filter((r) => r.code.includes(searchText)).length === 0 && (
-                  <p className="text-white/70 text-center py-2">{searchText ? "Không tìm thấy phòng nào với mã này." : "Chưa có phòng nào đang mở."}</p>
-                )}
+              <div className="flex items-center gap-2">
+                <input className="flex-1 bg-white/10 text-white placeholder:text-white/50 px-4 py-3 rounded-full font-bold outline-none" placeholder="Nhập mã phòng, ví dụ 148123" value={searchText} onChange={(e) => setSearchText(e.target.value.replace(/\D/g, "").slice(0, 6))} onKeyDown={(e) => { if (e.key === "Enter" && searchText.length === 6) s.onlineJoinRoom(searchText); }} />
+                <button className="bg-teal-600 text-white rounded-full shrink-0 flex items-center justify-center disabled:opacity-40" style={{ width: 48, height: 48 }} disabled={searchText.length !== 6} onClick={() => s.onlineJoinRoom(searchText)} aria-label="Tìm phòng"><Search size={22} /></button>
               </div>
               {s.onlineError && <p className="text-red-300 font-bold mt-3">{s.onlineError}</p>}
-              {searchText.length === 6 && !s.publicRooms.some((r) => r.code === searchText) && (
-                <button className="tan-pill green w-full mt-3" onClick={() => s.onlineJoinRoom(searchText)}>Vào phòng {searchText}</button>
-              )}
-              <button className="tan-pill w-full mt-3" style={{ background: "rgba(255,255,255,.15)", color: "#fff" }} onClick={() => { setSearchOpen(false); s.goToRooms(); }}>Xem tất cả phòng</button>
             </div>
           </div>
         )}

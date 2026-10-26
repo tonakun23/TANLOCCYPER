@@ -240,6 +240,8 @@ store.setState({
     const before = tableIds(game);
     try { defend(game, HUMAN_ID, attackId, defenseId); const played = newTableCard(before, game); store.setState({ game: cloneGame(game), selected: null, humanAddPassed: false, flying: played ? { cardId: played, by: HUMAN_ID, key: Date.now() } : null }); playCardSound(); store.getState().addLog(`Bạn đỡ ${attackId} bằng ${cardLabel(parseCard(defenseId))}.`); void store.getState().runBots(); } catch (e) { alert((e as Error).message); }
   },
+  // Dọn bóng mờ lá lên bài: trước đây hàm này vẫn là mẫu rỗng nên lá bay xong cứ nằm lại ở tay bài.
+  clearTakeAnim: () => store.setState({ takeAnimCards: null }),
   takeCards: () => {
     const { game, onlineMode } = store.getState(); if (!game) return;
     if (onlineMode) {

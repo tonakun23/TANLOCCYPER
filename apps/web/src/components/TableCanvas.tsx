@@ -77,6 +77,15 @@ function drawTable(app: PIXI.Application, game: GameState, textures?: Map<string
   table.fill(0x2e7d32);
   table.stroke({ color: 0xfacc15, width: 4 });
   app.stage.addChild(table);
+  // Logo chất chủ mờ to giữa bàn, hòa vào nền bàn (nằm dưới mọi lá bài).
+  // Giấu lúc đang phát bài để khỏi lộ chất chủ trước bước lật chủ.
+  if (!hideStock && game.trumpSuit) {
+    const wm = new PIXI.Text({ text: SUIT_SYMBOL[game.trumpSuit], style: { fontSize: Math.max(120, Math.min(240, ry)), fill: game.trumpSuit === "H" || game.trumpSuit === "D" ? 0xf87171 : 0xffffff, fontWeight: "bold" } });
+    wm.anchor.set(0.5);
+    wm.x = cx; wm.y = cy;
+    wm.alpha = 0.12;
+    app.stage.addChild(wm);
+  }
   // Đã bỏ dòng chữ ở đầu bàn (Chủ / Bỏ) vì nó che tầm nhìn chỗ bot trên cùng.
   // Chất chủ vẫn nhận biết được qua lá chủ lật ngửa dưới nọc + dòng Chủ ở header trên cùng.
   // Đối thủ KHÔNG vẽ ở đây nữa: App vẽ dải avatar + bài úp cho từng người,
