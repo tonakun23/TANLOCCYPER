@@ -28,7 +28,12 @@ export const HUMAN_ID = "player_0";
 // Ván bot: số dư lưu localStorage, chỉ quyết toán cho người chơi (bot không có số dư).
 // Ván online: server quyết toán (server-authoritative), client chỉ hiển thị.
 function loadBalance(): number {
-  try { const v = Number(localStorage.getItem("tanloc-balance")); return Number.isFinite(v) && v >= 0 ? v : START_BALANCE; } catch { return START_BALANCE; }
+  try {
+    const raw = localStorage.getItem("tanloc-balance");
+    if (raw === null) return START_BALANCE; // Chua co key: nguoi moi = 1M (Number(null) = 0 nen khong duoc dung Number truc tiep).
+    const v = Number(raw);
+    return Number.isFinite(v) && v >= 0 ? v : START_BALANCE;
+  } catch { return START_BALANCE; }
 }
 export interface CoinHistoryEntry {
   at: string; mode: "bot" | "online"; level: number;
