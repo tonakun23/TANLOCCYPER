@@ -267,7 +267,9 @@ export default function App() {
     const tierRooms = s.publicRooms.filter((r) => tierOf(r.bet) === roomTier);
     return (
       <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
+        {/* Đầu màn kiểu ảnh mẫu: X trái, CHƠI NGAY + TẠO PHÒNG giữa, Home phải. */}
         <div className="tan-rooms-top">
+          <button className="tan-icon" onClick={s.backToLobby} aria-label="Đóng"><X size={22} /></button>
           <div style={{ margin: "0 auto", display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
             <button className="tan-pill orange" onClick={() => s.onlineCreateRoom(50_000, 4, true)}>CHƠI NGAY</button>
             <button className="tan-pill green" onClick={() => s.goToCreate(false)}>TẠO PHÒNG</button>
@@ -275,71 +277,69 @@ export default function App() {
           </div>
           <button className="tan-icon" onClick={s.backToLobby} aria-label="Về trang chủ"><Home {...ic} /></button>
         </div>
-        <div style={{ padding: "24px 20px", maxWidth: 640, margin: "0 auto", width: "100%", flex: "1 1 auto", minHeight: 0, overflowY: "auto" }}>
-          <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fef3c7", marginBottom: 8 }}>Vào phòng bạn bè bằng mã phòng</h2>
-          <p style={{ color: "rgba(255,255,255,.75)", fontSize: 14, marginBottom: 12 }}>Chơi với bạn là chơi với người thật, không có bot trong phòng. Nhập mã phòng bạn bè gửi, bấm Vào phòng để vào phòng chờ.</p>
-          <div style={{ display: "flex", gap: 12 }}>
-            <input className="text-black px-4 py-3 rounded-full flex-1 font-bold" placeholder="Nhập mã phòng 6 số, ví dụ 148123" value={joinCode} onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
-            <button className="tan-pill green" disabled={joinCode.length !== 6} style={{ opacity: joinCode.length === 6 ? 1 : 0.5 }} onClick={() => s.onlineJoinRoom(joinCode)}>Vào phòng</button>
+        {/* Hàng phụ gọn 1 dòng: nhập mã phòng + mức bàn bot + làm mới (bảng vẫn chiếm gần hết màn hình). */}
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "10px min(2vw, 20px) 0" }}>
+          <input className="text-black px-4 py-2 rounded-full font-bold" style={{ width: 210 }} placeholder="Nhập mã phòng 6 số" value={joinCode} onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
+          <button className="tan-pill green" disabled={joinCode.length !== 6} style={{ opacity: joinCode.length === 6 ? 1 : 0.5, fontSize: 14, padding: "8px 18px" }} onClick={() => s.onlineJoinRoom(joinCode)}>Vào phòng</button>
+          <span style={{ fontSize: 13, color: "rgba(255,255,255,.75)" }}>Số dư: <b style={{ color: "#ffd97a" }}>{s.balance.toLocaleString("vi-VN")} xu</b></span>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 13, color: "rgba(255,255,255,.75)" }}>Mức bàn bot:</span>
+            {TABLE_LEVELS.map((lv) => {
+              const afford = s.balance >= minBalance(lv);
+              const selected = s.tableLevel === lv;
+              return (
+                <button key={lv} disabled={!afford} onClick={() => s.setTableLevel(lv)} style={{ padding: "6px 12px", borderRadius: 999, fontWeight: 800, fontSize: 13, border: selected ? "2px solid #facc15" : "1px solid rgba(255,255,255,.3)", background: selected ? "#f59e0b" : "rgba(0,0,0,.3)", color: afford ? "#fff" : "rgba(255,255,255,.35)", cursor: afford ? "pointer" : "default" }}>
+                  {formatCoins(lv)}
+                </button>
+              );
+            })}
           </div>
-          <div style={{ marginTop: 28 }}>
-            <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fef3c7", marginBottom: 8 }}>Mức bàn chơi với bot</h2>
-            <p style={{ color: "rgba(255,255,255,.75)", fontSize: 14, marginBottom: 12 }}>Số dư của bạn: <b style={{ color: "#ffd97a" }}>{s.balance.toLocaleString("vi-VN")} xu</b> · Mức mờ là chưa đủ 10 lần mức bàn để vào.</p>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {TABLE_LEVELS.map((lv) => {
-                const afford = s.balance >= minBalance(lv);
-                const selected = s.tableLevel === lv;
-                return (
-                  <button key={lv} disabled={!afford} onClick={() => s.setTableLevel(lv)} style={{ padding: "8px 14px", borderRadius: 999, fontWeight: 800, fontSize: 14, border: selected ? "2px solid #facc15" : "1px solid rgba(255,255,255,.3)", background: selected ? "#f59e0b" : "rgba(0,0,0,.3)", color: afford ? "#fff" : "rgba(255,255,255,.35)", cursor: afford ? "pointer" : "default" }}>
-                    {formatCoins(lv)}
-                  </button>
-                );
-              })}
+          <button className="tan-pill" style={{ background: "rgba(255,255,255,.15)", fontSize: 13, padding: "6px 14px", marginLeft: "auto" }} onClick={() => void s.loadPublicRooms()}>Làm mới</button>
+        </div>
+        {/* Bảng full màn kiểu thiết kế cũ (.tan-table/.tan-head/.tan-row/.tan-join trong styles.css). */}
+        <div className="tan-table">
+          <div className="tan-head"><span>Phòng</span><span>Mức cược</span><span>Số người</span><span>Tối thiểu</span><span>Trạng thái</span></div>
+          <div className="tan-list">
+            {tierRooms.length === 0 ? (
+              <p style={{ color: "rgba(255,255,255,.6)", fontSize: 14, textAlign: "center", padding: "20px 14px", margin: 0 }}>{s.publicRooms.length === 0 ? "Chưa có phòng nào đang mở. Bấm CHƠI NGAY hoặc TẠO PHÒNG để mở phòng đầu tiên, rồi chờ người khác bấm vào chơi cùng." : `Chưa có phòng ${ROOM_TIERS.find((t) => t.id === roomTier)?.name} nào đang mở, thử xem tab khác.`}</p>
+            ) : tierRooms.map((r) => {
+              const full = r.playerCount >= r.maxPlayers;
+              return (
+                <div key={r.code} className="tan-row" style={{ padding: "min(2.2vh, 16px) 0" }}>
+                  <span className="tan-room-id">{r.code}<span style={{ display: "block", fontSize: 11, fontWeight: 400, color: "rgba(255,255,255,.65)" }}>Chủ phòng: {r.hostName}</span></span>
+                  <span className="tan-bet">{r.bet}</span>
+                  <span className="tan-hearts">{Array.from({ length: r.maxPlayers }, (_, i) => (<Heart key={i} size={20} color="#dc2626" fill={i < r.playerCount ? "#dc2626" : "transparent"} opacity={i < r.playerCount ? 1 : 0.3} />))}</span>
+                  <span className="tan-min">{formatCoins(parseBet(r.bet) * 10)}</span>
+                  {full ? (
+                    <span style={{ fontSize: 13, color: "rgba(255,255,255,.5)" }}>Đã đủ</span>
+                  ) : (
+                    <button className="tan-join" onClick={() => s.onlineJoinRoom(r.code)}>Tham gia</button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        {/* Chân màn kiểu ảnh mẫu: avatar + tên + xu trái, 4 tab hạng phải. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", padding: "10px min(2vw, 20px) 4px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {s.googleUser?.avatar ? <img src={s.googleUser.avatar} alt="" className="tan-avatar" style={{ objectFit: "cover", width: 44, height: 44, fontSize: 18 }} /> : <div className="tan-avatar" style={{ width: 44, height: 44, fontSize: 18 }}>{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>}
+            <div>
+              <div style={{ fontWeight: 800 }}>{s.playerName.trim() || "Bạn"}</div>
+              <div style={{ color: "#ffd97a", fontWeight: 800, fontSize: 14 }}>{s.balance.toLocaleString("vi-VN")}</div>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "28px 0 8px" }}>
-            <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fef3c7", margin: 0 }}>Phòng thật đang mở</h2>
-            <button className="tan-pill" style={{ background: "rgba(255,255,255,.15)", fontSize: 13, padding: "6px 14px" }} onClick={() => void s.loadPublicRooms()}>Làm mới</button>
-          </div>
-          {/* 4 tab hạng kiểu ảnh mẫu, lọc phòng thật theo mức cược (kèm số phòng mỗi hạng). */}
-          <div style={{ display: "flex", gap: 0, border: "1.5px solid rgba(255,255,255,.25)", borderRadius: 12, overflow: "hidden", marginBottom: 10 }}>
+          <div className="tan-tabs" style={{ marginLeft: "auto" }}>
             {ROOM_TIERS.map((t) => {
               const count = s.publicRooms.filter((r) => tierOf(r.bet) === t.id).length;
               const active = roomTier === t.id;
               return (
-                <button key={t.id} onClick={() => setRoomTier(t.id)} style={{ flex: 1, padding: "10px 4px", fontWeight: 800, fontSize: 14, border: "none", background: active ? "#dc2626" : "rgba(0,0,0,.3)", color: "#fff", cursor: "pointer" }}>{t.name} ({count})</button>
+                <button key={t.id} onClick={() => setRoomTier(t.id)} className={active ? "tan-tab active" : "tan-tab"}>{t.name} ({count})</button>
               );
             })}
           </div>
-          <div style={{ border: "1.5px solid rgba(255,255,255,.25)", borderRadius: 16, background: "rgba(0,0,0,.25)", overflowX: "auto" }}>
-            <div style={{ minWidth: 560 }}>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "10px 14px", fontWeight: 800, fontSize: 13, color: "rgba(255,255,255,.7)", borderBottom: "1px solid rgba(255,255,255,.2)" }}>
-                <span style={{ flex: 1 }}>Phòng</span><span style={{ width: 70 }}>Mức cược</span><span style={{ width: 96 }}>Số người</span><span style={{ width: 80 }}>Tối thiểu</span><span style={{ width: 84 }}>Trạng thái</span>
-              </div>
-              {tierRooms.length === 0 ? (
-                <p style={{ color: "rgba(255,255,255,.6)", fontSize: 14, textAlign: "center", padding: "20px 14px", margin: 0 }}>{s.publicRooms.length === 0 ? "Chưa có phòng nào đang mở. Bấm CHƠI NGAY hoặc TẠO PHÒNG để mở phòng đầu tiên, rồi chờ người khác bấm vào chơi cùng." : `Chưa có phòng ${ROOM_TIERS.find((t) => t.id === roomTier)?.name} nào đang mở, thử xem tab khác.`}</p>
-              ) : tierRooms.map((r) => {
-                const full = r.playerCount >= r.maxPlayers;
-                return (
-                  <div key={r.code} style={{ display: "flex", gap: 8, alignItems: "center", padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,.12)" }}>
-                    <span style={{ flex: 1, fontWeight: 900 }}>{r.code}<span style={{ display: "block", fontSize: 12, fontWeight: 400, color: "rgba(255,255,255,.6)" }}>Chủ phòng: {r.hostName}</span></span>
-                    <span style={{ width: 70, fontWeight: 800, color: "#ffd97a" }}>{r.bet}</span>
-                    <span style={{ width: 96, display: "flex", gap: 2 }}>{Array.from({ length: r.maxPlayers }, (_, i) => (<Heart key={i} size={16} color="#dc2626" fill={i < r.playerCount ? "#dc2626" : "transparent"} opacity={i < r.playerCount ? 1 : 0.3} />))}</span>
-                    <span style={{ width: 80, fontWeight: 800, color: "#ffd97a" }}>{formatCoins(parseBet(r.bet) * 10)}</span>
-                    {full ? (
-                      <span style={{ width: 84, textAlign: "center", fontSize: 13, color: "rgba(255,255,255,.5)" }}>Đã đủ</span>
-                    ) : (
-                      <button style={{ width: 84, padding: "8px 0", fontSize: 13, fontWeight: 800, borderRadius: 8, border: "none", background: "#3b9db5", color: "#fff", cursor: "pointer" }} onClick={() => s.onlineJoinRoom(r.code)}>Tham gia</button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <p style={{ color: "rgba(255,255,255,.6)", fontSize: 13, marginTop: 10 }}>Vào phòng chỉ cần 1 người: bạn vào phòng chờ trước, người khác bấm Vào từ bảng này (hoặc nhập mã phòng), đủ 2 người là tự vào ván, không cần bấm gì thêm.</p>
         </div>
-        <div style={{ flex: 1 }} />
-        <p style={{ textAlign: "center", color: "rgba(255,255,255,.6)", fontSize: 13, paddingBottom: 12 }}>Xu trong Tấn chỉ là điểm thưởng, không nạp/rút hay đổi tiền thật.</p>
+        <p style={{ textAlign: "center", color: "rgba(255,255,255,.5)", fontSize: 11, paddingBottom: 8, margin: 0 }}>Xu trong Tấn chỉ là điểm thưởng, không nạp/rút hay đổi tiền thật.</p>
       </div>
     );
   }
