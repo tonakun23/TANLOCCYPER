@@ -4,7 +4,7 @@ import { CardView } from "./components/CardView";
 import { TableCanvas } from "./components/TableCanvas";
 import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, canAttackCard, cardLabel } from "../../../packages/game-core/src/engine";
 import { TABLE_LEVELS, formatCoins, minBalance } from "../../../packages/game-core/src/coins";
-import { X, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, Crown, LogOut, Heart, } from "lucide-react";
+import { X, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, Crown, LogOut, Heart, Search, } from "lucide-react";
 import { playDealSound, playCardSound, playTrumpAceSound, setSoundEnabled, setSoundVolume } from "./game/sound";
 const ic = { size: 22, strokeWidth: 2 };
 // Bảng hạng phòng (kiểu ảnh mẫu): mỗi hạng là một khoảng mức cược, phòng thật nào cũng rơi đúng 1 hạng.
@@ -47,6 +47,8 @@ export default function App() {
   const [googleError, setGoogleError] = useState("");
   const [popupBlocked, setPopupBlocked] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
   useEffect(() => { void s.loadFirebaseConfig(); }, []);
   // Màn CHƠI NGAY: tải bảng phòng thật, làm mới mỗi 5 giây khi đang ở màn này.
   useEffect(() => {
@@ -215,7 +217,7 @@ export default function App() {
         <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle">f</span></button>
         <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><Users {...ic} /></span></button>
         <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><Backpack {...ic} /></span></button>
-        <button className="tan-choose" onClick={s.goToRooms}>CHỌN<br />BÀN</button>
+        <button className="tan-choose" onClick={() => { setSearchOpen(true); void s.loadPublicRooms(); }} aria-label="Tìm phòng"><Search size={22} /><br />TÌM<br />KIẾM</button>
       </div>
     </div>
   );
@@ -235,12 +237,14 @@ export default function App() {
             <div style={{ textAlign: "center", marginBottom: 12 }}>
               <span style={{ background: "#9f1239", padding: "8px 28px", borderRadius: 8, fontWeight: 900, fontSize: "clamp(15px, 3.4vh, 22px)" }}>{BET_LEVELS[betIdx]}</span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <button className="tan-icon" style={{ background: "#9f1239" }} onClick={() => setBetIdx((v) => Math.max(0, v - 1))} aria-label="Giảm mức điểm"><Minus size={22} /></button>
-              <div style={{ flex: 1, position: "relative", height: 40, display: "flex", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+              <button className="tan-icon" style={{ background: "#9f1239", marginRight: 16 }} onClick={() => setBetIdx((v) => Math.max(0, v - 1))} aria-label="Giảm mức điểm"><Minus size={22} /></button>
+              <div style={{ flex: 1, position: "relative", height: 40, display: "flex", alignItems: "center", cursor: "grab", touchAction: "none", userSelect: "none" }}
+                onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); const ratio = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); setBetIdx(Math.round(ratio * (BET_LEVELS.length - 1))); }}
+                onPointerMove={(e) => { if (e.buttons !== 1) return; const r = e.currentTarget.getBoundingClientRect(); const ratio = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); setBetIdx(Math.round(ratio * (BET_LEVELS.length - 1))); }}>
                 <div style={{ position: "absolute", left: 0, right: 0, height: 10, borderRadius: 99, background: "rgba(0,0,0,.6)" }} />
                 <div style={{ position: "absolute", left: 0, width: `${pct}%`, height: 10, borderRadius: 99, background: "#f59e0b" }} />
-                <img src="/icons/chip-gold.png" alt="Chip" style={{ position: "absolute", left: `calc(${pct}% - 20px)`, width: 40, height: 40 }} />
+                <img src="/icons/chip-gold.png" alt="Chip" draggable={false} style={{ position: "absolute", left: `calc(${pct}% - 20px)`, width: 40, height: 40, pointerEvents: "none" }} />
               </div>
               <button className="tan-icon" style={{ background: "#9f1239" }} onClick={() => setBetIdx((v) => Math.min(BET_LEVELS.length - 1, v + 1))} aria-label="Tăng mức điểm"><Plus size={22} /></button>
             </div>
@@ -279,7 +283,7 @@ export default function App() {
         </div>
         {/* Hàng phụ gọn 1 dòng: nhập mã phòng + mức bàn bot + làm mới (bảng vẫn chiếm gần hết màn hình). */}
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "10px min(2vw, 20px) 0" }}>
-          <input className="text-black bg-white px-4 py-2 rounded-full font-bold" style={{ width: 210 }} placeholder="Nhập mã phòng 6 số" value={joinCode} onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
+          <input className="text-white bg-black/30 placeholder:text-white/50 px-4 py-2 rounded-full font-bold outline-none" style={{ width: 210 }} placeholder="Nhập mã phòng 6 số" value={joinCode} onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
           <button className="tan-pill green" disabled={joinCode.length !== 6} style={{ opacity: joinCode.length === 6 ? 1 : 0.5, fontSize: 14, padding: "8px 18px" }} onClick={() => s.onlineJoinRoom(joinCode)}>Vào phòng</button>
           <span style={{ fontSize: 13, color: "rgba(255,255,255,.75)" }}>Số dư: <b style={{ color: "#ffd97a" }}>{s.balance.toLocaleString("vi-VN")} xu</b></span>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -514,6 +518,32 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {searchOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setSearchOpen(false)}>
+            <div className="w-full max-w-lg max-h-[85vh] overflow-auto bg-red-900 border border-yellow-400 rounded-2xl p-5 text-sm leading-relaxed" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-3"><h2 className="font-bold text-lg">Tìm phòng</h2><button onClick={() => setSearchOpen(false)} aria-label="Đóng tìm phòng"><X size={18} /></button></div>
+              <input className="w-full bg-white/10 text-white placeholder:text-white/50 px-4 py-3 rounded-full font-bold outline-none" placeholder="Nhập mã phòng, ví dụ 148123" value={searchText} onChange={(e) => setSearchText(e.target.value.replace(/\D/g, "").slice(0, 6))} />
+              <div className="mt-3 flex justify-end"><button className="text-yellow-200 font-bold" onClick={() => void s.loadPublicRooms()}>Làm mới</button></div>
+              <div className="mt-2 space-y-2">
+                {s.publicRooms.filter((r) => r.code.includes(searchText)).map((r) => (
+                  <div key={r.code} className="flex items-center justify-between gap-2 bg-black/30 rounded-xl px-4 py-2">
+                    <div><span className="font-black text-yellow-200">{r.code}</span><span className="opacity-80"> · {r.bet} · {r.playerCount}/{r.maxPlayers} người{r.hostName ? ` · ${r.hostName}` : ""}</span></div>
+                    <button className="bg-teal-600 text-white font-bold px-4 py-1 rounded-full shrink-0" onClick={() => s.onlineJoinRoom(r.code)}>Tham gia</button>
+                  </div>
+                ))}
+                {s.publicRooms.filter((r) => r.code.includes(searchText)).length === 0 && (
+                  <p className="text-white/70 text-center py-2">{searchText ? "Không tìm thấy phòng nào với mã này." : "Chưa có phòng nào đang mở."}</p>
+                )}
+              </div>
+              {s.onlineError && <p className="text-red-300 font-bold mt-3">{s.onlineError}</p>}
+              {searchText.length === 6 && !s.publicRooms.some((r) => r.code === searchText) && (
+                <button className="tan-pill green w-full mt-3" onClick={() => s.onlineJoinRoom(searchText)}>Vào phòng {searchText}</button>
+              )}
+              <button className="tan-pill w-full mt-3" style={{ background: "rgba(255,255,255,.15)", color: "#fff" }} onClick={() => { setSearchOpen(false); s.goToRooms(); }}>Xem tất cả phòng</button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -683,7 +713,7 @@ export default function App() {
             ))}
           </div>
           <form className="flex gap-2 p-4 border-t border-white/20" onSubmit={(e) => { e.preventDefault(); const msg = chatText.trim(); if (msg) { s.sendChat(msg); setBubble({ text: msg, key: Date.now() }); } setChatText(""); }}>
-            <input className="flex-1 min-w-0 bg-white text-black px-3 py-2 rounded-full text-sm" placeholder="Nhắn trong ván này…" value={chatText} onChange={(e) => setChatText(e.target.value)} />
+            <input className="flex-1 min-w-0 bg-white/10 text-white placeholder:text-white/50 px-3 py-2 rounded-full text-sm outline-none" placeholder="Nhắn trong ván này…" value={chatText} onChange={(e) => setChatText(e.target.value)} />
             <button className="bg-yellow-400 text-black font-bold px-4 rounded-full text-sm" type="submit">Gửi</button>
           </form>
           <p className="text-center text-white/50 text-xs pb-2">Thoát ván là mất chat, không lưu lại.</p>
