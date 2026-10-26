@@ -4,9 +4,28 @@ import { CardView } from "./components/CardView";
 import { TableCanvas } from "./components/TableCanvas";
 import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, canAttackCard, cardLabel } from "../../../packages/game-core/src/engine";
 import { TABLE_LEVELS, formatCoins, minBalance } from "../../../packages/game-core/src/coins";
-import { X, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, Crown, LogOut, } from "lucide-react";
+import { X, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, Crown, LogOut, Heart, } from "lucide-react";
 import { playDealSound, playCardSound, playTrumpAceSound, setSoundEnabled, setSoundVolume } from "./game/sound";
 const ic = { size: 22, strokeWidth: 2 };
+// Bảng hạng phòng (kiểu ảnh mẫu): mỗi hạng là một khoảng mức cược, phòng thật nào cũng rơi đúng 1 hạng.
+const ROOM_TIERS = [
+  { id: "tap-su", name: "Tập Sự", max: 100_000 },
+  { id: "nghiep-du", name: "Nghiệp Dư", max: 500_000 },
+  { id: "chuyen-nghiep", name: "Chuyên Nghiệp", max: 2_000_000 },
+  { id: "master", name: "Master", max: Infinity },
+];
+function parseBet(bet: string | number): number {
+  if (typeof bet === "number") return bet;
+  const m = String(bet).trim().match(/^([\d.,]+)\s*([KM]?)$/i);
+  if (!m) return 0;
+  const v = parseFloat(m[1].replace(/,/g, ""));
+  return m[2].toUpperCase() === "M" ? v * 1_000_000 : m[2].toUpperCase() === "K" ? v * 1_000 : v;
+}
+function tierOf(bet: string | number): string {
+  const v = parseBet(bet);
+  for (const t of ROOM_TIERS) if (v <= t.max) return t.id;
+  return "master";
+}
 
 export default function App() {
   const s = useGameStore();
@@ -22,6 +41,7 @@ export default function App() {
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [followSeconds, setFollowSeconds] = useState(5);
   const [joinCode, setJoinCode] = useState("");
+  const [roomTier, setRoomTier] = useState("tap-su");
   const [starting, setStarting] = useState<null | { step: "count" | "deal" | "trump"; count: number; deal: number }>(null);
   const [firstEffect, setFirstEffect] = useState(false);
   const [googleError, setGoogleError] = useState("");
@@ -244,6 +264,7 @@ export default function App() {
     );
   }
   if (s.screen === "rooms") {
+    const tierRooms = s.publicRooms.filter((r) => tierOf(r.bet) === roomTier);
     return (
       <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
         <div className="tan-rooms-top">
@@ -254,7 +275,7 @@ export default function App() {
           </div>
           <button className="tan-icon" onClick={s.backToLobby} aria-label="Về trang chủ"><Home {...ic} /></button>
         </div>
-        <div style={{ padding: "24px 20px", maxWidth: 640, margin: "0 auto", width: "100%" }}>
+        <div style={{ padding: "24px 20px", maxWidth: 640, margin: "0 auto", width: "100%", flex: "1 1 auto", minHeight: 0, overflowY: "auto" }}>
           <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fef3c7", marginBottom: 8 }}>Vào phòng bạn bè bằng mã phòng</h2>
           <p style={{ color: "rgba(255,255,255,.75)", fontSize: 14, marginBottom: 12 }}>Chơi với bạn là chơi với người thật, không có bot trong phòng. Nhập mã phòng bạn bè gửi, bấm Vào phòng để vào phòng chờ.</p>
           <div style={{ display: "flex", gap: 12 }}>
@@ -280,20 +301,40 @@ export default function App() {
             <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fef3c7", margin: 0 }}>Phòng thật đang mở</h2>
             <button className="tan-pill" style={{ background: "rgba(255,255,255,.15)", fontSize: 13, padding: "6px 14px" }} onClick={() => void s.loadPublicRooms()}>Làm mới</button>
           </div>
-          <div style={{ border: "1.5px solid rgba(255,255,255,.25)", borderRadius: 16, overflow: "hidden", background: "rgba(0,0,0,.25)" }}>
-            <div style={{ display: "flex", gap: 8, padding: "10px 14px", fontWeight: 800, fontSize: 13, color: "rgba(255,255,255,.7)", borderBottom: "1px solid rgba(255,255,255,.2)" }}>
-              <span style={{ flex: 1 }}>Mã phòng</span><span style={{ width: 70 }}>Mức điểm</span><span style={{ width: 80 }}>Người chơi</span><span style={{ width: 64 }} />
-            </div>
-            {s.publicRooms.length === 0 ? (
-              <p style={{ color: "rgba(255,255,255,.6)", fontSize: 14, textAlign: "center", padding: "20px 14px", margin: 0 }}>Chưa có phòng nào đang mở. Bấm CHƠI NGAY hoặc TẠO PHÒNG để mở phòng đầu tiên, rồi chờ người khác bấm vào chơi cùng.</p>
-            ) : s.publicRooms.map((r) => (
-              <div key={r.code} style={{ display: "flex", gap: 8, alignItems: "center", padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,.12)" }}>
-                <span style={{ flex: 1, fontWeight: 900 }}>{r.code}<span style={{ display: "block", fontSize: 12, fontWeight: 400, color: "rgba(255,255,255,.6)" }}>Chủ phòng: {r.hostName}</span></span>
-                <span style={{ width: 70, fontWeight: 800, color: "#ffd97a" }}>{r.bet}</span>
-                <span style={{ width: 80 }}>{r.playerCount}/{r.maxPlayers}</span>
-                <button className="tan-pill green" style={{ width: 64, padding: "6px 0", fontSize: 13 }} onClick={() => s.onlineJoinRoom(r.code)}>Vào</button>
+          {/* 4 tab hạng kiểu ảnh mẫu, lọc phòng thật theo mức cược (kèm số phòng mỗi hạng). */}
+          <div style={{ display: "flex", gap: 0, border: "1.5px solid rgba(255,255,255,.25)", borderRadius: 12, overflow: "hidden", marginBottom: 10 }}>
+            {ROOM_TIERS.map((t) => {
+              const count = s.publicRooms.filter((r) => tierOf(r.bet) === t.id).length;
+              const active = roomTier === t.id;
+              return (
+                <button key={t.id} onClick={() => setRoomTier(t.id)} style={{ flex: 1, padding: "10px 4px", fontWeight: 800, fontSize: 14, border: "none", background: active ? "#dc2626" : "rgba(0,0,0,.3)", color: "#fff", cursor: "pointer" }}>{t.name} ({count})</button>
+              );
+            })}
+          </div>
+          <div style={{ border: "1.5px solid rgba(255,255,255,.25)", borderRadius: 16, background: "rgba(0,0,0,.25)", overflowX: "auto" }}>
+            <div style={{ minWidth: 560 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "10px 14px", fontWeight: 800, fontSize: 13, color: "rgba(255,255,255,.7)", borderBottom: "1px solid rgba(255,255,255,.2)" }}>
+                <span style={{ flex: 1 }}>Phòng</span><span style={{ width: 70 }}>Mức cược</span><span style={{ width: 96 }}>Số người</span><span style={{ width: 80 }}>Tối thiểu</span><span style={{ width: 84 }}>Trạng thái</span>
               </div>
-            ))}
+              {tierRooms.length === 0 ? (
+                <p style={{ color: "rgba(255,255,255,.6)", fontSize: 14, textAlign: "center", padding: "20px 14px", margin: 0 }}>{s.publicRooms.length === 0 ? "Chưa có phòng nào đang mở. Bấm CHƠI NGAY hoặc TẠO PHÒNG để mở phòng đầu tiên, rồi chờ người khác bấm vào chơi cùng." : `Chưa có phòng ${ROOM_TIERS.find((t) => t.id === roomTier)?.name} nào đang mở, thử xem tab khác.`}</p>
+              ) : tierRooms.map((r) => {
+                const full = r.playerCount >= r.maxPlayers;
+                return (
+                  <div key={r.code} style={{ display: "flex", gap: 8, alignItems: "center", padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,.12)" }}>
+                    <span style={{ flex: 1, fontWeight: 900 }}>{r.code}<span style={{ display: "block", fontSize: 12, fontWeight: 400, color: "rgba(255,255,255,.6)" }}>Chủ phòng: {r.hostName}</span></span>
+                    <span style={{ width: 70, fontWeight: 800, color: "#ffd97a" }}>{r.bet}</span>
+                    <span style={{ width: 96, display: "flex", gap: 2 }}>{Array.from({ length: r.maxPlayers }, (_, i) => (<Heart key={i} size={16} color="#dc2626" fill={i < r.playerCount ? "#dc2626" : "transparent"} opacity={i < r.playerCount ? 1 : 0.3} />))}</span>
+                    <span style={{ width: 80, fontWeight: 800, color: "#ffd97a" }}>{formatCoins(parseBet(r.bet) * 10)}</span>
+                    {full ? (
+                      <span style={{ width: 84, textAlign: "center", fontSize: 13, color: "rgba(255,255,255,.5)" }}>Đã đủ</span>
+                    ) : (
+                      <button style={{ width: 84, padding: "8px 0", fontSize: 13, fontWeight: 800, borderRadius: 8, border: "none", background: "#3b9db5", color: "#fff", cursor: "pointer" }} onClick={() => s.onlineJoinRoom(r.code)}>Tham gia</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
           <p style={{ color: "rgba(255,255,255,.6)", fontSize: 13, marginTop: 10 }}>Vào phòng chỉ cần 1 người: bạn vào phòng chờ trước, người khác bấm Vào từ bảng này (hoặc nhập mã phòng) để đủ người rồi cùng sẵn sàng, đủ 2 người mới bắt đầu được.</p>
         </div>
