@@ -47,6 +47,9 @@ function loadHistory(): CoinHistoryEntry[] {
   try { const j = JSON.parse(localStorage.getItem("tanloc-coin-history") || "[]"); return Array.isArray(j) ? j : []; } catch { return []; }
 }
 function saveHistory(h: CoinHistoryEntry[]) { try { localStorage.setItem("tanloc-coin-history", JSON.stringify(h.slice(0, 30))); } catch { /* bỏ qua */ } }
+export interface FriendEntry { name: string; avatar: string | null; }
+function loadFriends(): FriendEntry[] { try { const j = JSON.parse(localStorage.getItem("tanloc-friends") || "[]"); return Array.isArray(j) ? j.filter((f) => f && typeof f.name === "string") : []; } catch { return []; } }
+function saveFriends(f: FriendEntry[]) { try { localStorage.setItem("tanloc-friends", JSON.stringify(f.slice(0, 100))); } catch { /* bỏ qua */ } }
 function saveBalance(v: number) { try { localStorage.setItem("tanloc-balance", String(v)); } catch { /* bỏ qua */ } }
 export interface SettlementRow { id: string; name: string; attackDelta: number; rankDelta: number; fee: number; net: number; balanceAfter: number | null; }
 export interface ClientSettlement {
@@ -67,7 +70,7 @@ export interface ChatMsg { id: number; from: string; text: string; }
 const BOT_REPLIES = ["Chơi hay đấy!", "Lá này khó đỡ quá!", "Tới lượt bạn rồi kìa.", "Haha, ván này căng!", "Để xem bạn đỡ sao đây.", "Bài mình cũng không đẹp lắm đâu."];
 
 interface GameStore {
-  screen: "login" | "lobby" | "rooms" | "create" | "waiting" | "game"; waitingCode: string | null; waitingCount: number; waitingReady: boolean; waitingMode: "private" | "quick" | "join"; myId: string; onlineMode: boolean; onlineRoom: { code: string; bet: string; level: number; maxPlayers: number; hostId: string; state: string; rematchReady: string[]; players: { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean; balance: number }[] } | null; onlineMyLobbyId: string | null; onlineWsStatus: string; onlineError: string | null; publicRooms: { code: string; bet: string; maxPlayers: number; playerCount: number; hostName: string }[]; googleUser: { name: string; email: string; avatar: string | null } | null; firebaseConfig: Record<string, string> | null; authError: string | null; configLoading: boolean;
+  screen: "login" | "lobby" | "rooms" | "create" | "waiting" | "game" | "friends" | "ranks"; waitingCode: string | null; waitingCount: number; waitingReady: boolean; waitingMode: "private" | "quick" | "join"; myId: string; onlineMode: boolean; onlineRoom: { code: string; bet: string; level: number; maxPlayers: number; hostId: string; state: string; rematchReady: string[]; players: { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean; balance: number }[] } | null; onlineMyLobbyId: string | null; onlineWsStatus: string; onlineError: string | null; publicRooms: { code: string; bet: string; maxPlayers: number; playerCount: number; hostName: string }[]; friends: FriendEntry[]; googleUser: { name: string; email: string; avatar: string | null } | null; firebaseConfig: Record<string, string> | null; authError: string | null; configLoading: boolean;
   // Xu: số dư (ván bot lưu localStorage, ván online server quyết toán), mức bàn
   // đang chọn, kết quả quyết toán của ván vừa kết thúc, lịch sử quyết toán.
   balance: number; tableLevel: number; settlement: ClientSettlement | null; settledNonce: number; gameNonce: number; coinHistory: CoinHistoryEntry[];
@@ -85,7 +88,7 @@ interface GameStore {
   // Chat chỉ tồn tại trong ván: chỉ ở bộ nhớ, không lưu DB, không localStorage.
   chat: ChatMsg[];
   setPlayerName: (v: string) => void; setPlayerCount: (v: number) => void; setAllowTransfer: (v: boolean) => void; setTableLevel: (v: number) => void;
-  startGame: () => void; backToLobby: () => void; goToRooms: () => void; goToCreate: (isPrivate: boolean) => void; goToWaiting: (code: string, count: number, mode: "private" | "quick" | "join") => void; setWaitingReady: (v: boolean) => void; setRoomCode: (code: string | null) => void; setSelected: (v: string | null) => void;
+  startGame: () => void; backToLobby: () => void; goToRooms: () => void; goToCreate: (isPrivate: boolean) => void; goToFriends: () => void; goToRanks: () => void; goToLobby: () => void; addFriend: (name: string, avatar: string | null) => void; removeFriend: (name: string) => void; goToWaiting: (code: string, count: number, mode: "private" | "quick" | "join") => void; setWaitingReady: (v: boolean) => void; setRoomCode: (code: string | null) => void; setSelected: (v: string | null) => void;
   playCard: (cardId: string) => void; defendPair: (attackId: string, defenseCardId?: string) => void;
   takeCards: () => void; finishAttackAction: () => void; transferCard: () => void; passAdd: () => void;
   drawCards: () => Promise<void>; runDrawPhase: () => Promise<void>; sortHand: (mode: "suit" | "rank") => void;
@@ -110,7 +113,7 @@ function tableIds(game: GameState): Set<string> {
 }
 
 export const useGameStore = create<GameStore>()((set, get) => ({
-  screen: "login", roomCode: null, waitingCode: null, waitingCount: 4, waitingReady: false, waitingMode: "private", myId: HUMAN_ID, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, onlineWsStatus: "disconnected", onlineError: null, publicRooms: [], googleUser: null, firebaseConfig: null, authError: null, configLoading: true, createPrivate: false, playerName: "Bạn", playerCount: 4, allowTransfer: true,
+  screen: "login", roomCode: null, waitingCode: null, waitingCount: 4, waitingReady: false, waitingMode: "private", myId: HUMAN_ID, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, onlineWsStatus: "disconnected", onlineError: null, publicRooms: [], friends: loadFriends(), googleUser: null, firebaseConfig: null, authError: null, configLoading: true, createPrivate: false, playerName: "Bạn", playerCount: 4, allowTransfer: true,
   balance: loadBalance(), tableLevel: 50_000, settlement: null, settledNonce: -1, gameNonce: 0, coinHistory: loadHistory(),
   game: null, selected: null, humanAddPassed: false, botBusy: false,
   notice: null, noticeKey: 0, flying: null, drawFlying: null, drawing: false, chat: [],
@@ -140,6 +143,11 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   backToLobby: () => { const st = get(); if (st.onlineMode) { try { onlineSend({ type: "leave" }); } catch { /* bỏ qua */ } try { onlineWs?.close(); } catch { /* bỏ qua */ } set({ screen: st.googleUser ? "lobby" : "login", game: null, selected: null, notice: null, flying: null, chat: [], roomCode: null, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, followWindow: null, takeAnimCards: null }); return; } if (st.game && st.game.phase !== "FINISHED") forfeitBotGame(); set({ screen: st.googleUser ? "lobby" : "login", game: null, selected: null, notice: null, flying: null, chat: [], roomCode: null }); },
   goToRooms: () => set({ screen: "rooms" }),
   goToCreate: (isPrivate) => set({ screen: "create", createPrivate: isPrivate }),
+  goToFriends: () => set({ screen: "friends" }),
+  goToRanks: () => set({ screen: "ranks" }),
+  goToLobby: () => set({ screen: "lobby" }),
+  addFriend: (name: string, avatar: string | null) => { const nm = name.trim(); if (!nm) return; const st = get(); if (nm === st.playerName.trim() || st.friends.some((f) => f.name === nm)) return; const next = [...st.friends, { name: nm, avatar: avatar || null }]; saveFriends(next); set({ friends: next }); },
+  removeFriend: (name: string) => { const next = get().friends.filter((f) => f.name !== name); saveFriends(next); set({ friends: next }); },
   goToWaiting: (code, count, mode) => set({ screen: "waiting", waitingCode: code, waitingCount: count, waitingReady: false, waitingMode: mode, roomCode: code }),
   setWaitingReady: (v) => set({ waitingReady: v }),
   setRoomCode: (code) => set({ roomCode: code }),

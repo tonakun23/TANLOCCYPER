@@ -57,6 +57,13 @@ export default function App() {
     const id = setInterval(() => { void s.loadPublicRooms(); }, 5000);
     return () => clearInterval(id);
   }, [s.screen]);
+  // Màn Bạn bè / Xếp hạng: tải bảng phòng thật, làm mới mỗi 5 giây khi đang ở 2 màn này (để thấy bạn đang mở phòng / người đang chơi).
+  useEffect(() => {
+    if (s.screen !== "friends" && s.screen !== "ranks") return;
+    void s.loadPublicRooms();
+    const id = setInterval(() => { void s.loadPublicRooms(); }, 5000);
+    return () => clearInterval(id);
+  }, [s.screen]);
   // Bong bóng chat trên avatar: hiện 6 giây rồi tự ẩn.
   useEffect(() => {
     if (!bubble) return;
@@ -309,7 +316,7 @@ export default function App() {
         <span className="tan-coins"><img src="/icons/coin.svg" alt="Xu" style={{ width: "min(7vh, 44px)", height: "min(7vh, 44px)" }} /> {s.balance.toLocaleString("vi-VN")}</span>
       </div>
       <div style={{ display: "flex", gap: 12 }}>
-        <button className="tan-icon" style={{ cursor: "default" }} aria-label="Bạn bè (chưa mở)"><Users {...ic} /></button>
+        <button className="tan-icon" onClick={s.goToFriends} aria-label="Bạn bè"><Users {...ic} /></button>
         <button className="tan-icon" aria-label="Hướng dẫn luật chơi" onClick={() => setHelpOpen(true)}><HelpCircle {...ic} /></button>
         <button className="tan-icon" aria-label="Cài đặt âm thanh" onClick={() => setSettingsOpen(true)}><Settings {...ic} /></button>
         {s.googleUser && <button className="tan-icon" aria-label="Đăng xuất" title="Đăng xuất" onClick={() => void s.googleLogout()}><LogOut {...ic} /></button>}
@@ -319,8 +326,8 @@ export default function App() {
   const homeBottom = (
     <div className="tan-bottom">
       <div className="tan-bottom-group">
-        <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><UserPlus {...ic} /></span></button>
-        <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><Trophy {...ic} /></span></button>
+        <button className="tan-bottom-btn" onClick={s.goToFriends} aria-label="Bạn bè"><span className="circle"><UserPlus {...ic} /></span></button>
+        <button className="tan-bottom-btn" onClick={s.goToRanks} aria-label="Xếp hạng"><span className="circle"><Trophy {...ic} /></span></button>
         <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><Gift {...ic} /></span><span className="tan-badge">10</span></button>
         <button className="tan-bottom-btn" onClick={() => setHistoryOpen(true)} aria-label="Lịch sử xu"><span className="circle"><ClipboardList {...ic} /></span></button>
       </div>
@@ -485,6 +492,7 @@ export default function App() {
                 {pl.avatar ? <img src={pl.avatar} alt={pl.name} className="w-[64px] h-[64px] rounded-full mx-auto" /> : <div className="tan-avatar" style={{ margin: "0 auto", width: 64, height: 64, fontSize: 24 }}>{pl.name.charAt(0).toUpperCase()}</div>}
                 <div style={{ fontWeight: 700, marginTop: 6 }}>{pl.name}{pl.isHost ? " (chủ phòng)" : ""}</div>
                 <div style={{ fontSize: 12, color: pl.online ? "#4ade80" : "#f87171" }}>{pl.online ? "Đang online" : "Mất kết nối"}</div>
+                {pl.id !== s.onlineMyLobbyId && (s.friends.some((f) => f.name === pl.name) ? <div style={{ fontSize: 12, color: "#4ade80", marginTop: 4 }}>✓ Bạn bè</div> : <button className="bg-teal-600 text-white font-bold px-3 py-1 rounded-full mt-2" style={{ fontSize: 12 }} onClick={() => s.addFriend(pl.name, pl.avatar)}>Kết bạn</button>)}
               </div>
             ) : (
               <div key={i} style={{ textAlign: "center", width: 110, opacity: 0.7 }}>
@@ -497,6 +505,107 @@ export default function App() {
           {s.onlineError && (
             <div style={{ textAlign: "center" }}>
               <p style={{ color: "#f87171", fontSize: 13 }}>{s.onlineError}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+  if (s.screen === "friends") {
+    const myFriendNames = new Set(s.friends.map((f) => f.name));
+    const hostRoom = new Map(s.publicRooms.map((r) => [r.hostName, r]));
+    return (
+      <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
+        <div className="tan-rooms-top">
+          <h1 style={{ margin: "0 auto", fontSize: "clamp(20px, 5vh, 34px)", letterSpacing: 1, color: "#fef3c7" }}>BẠN BÈ</h1>
+          <button className="tan-icon" onClick={s.goToLobby} aria-label="Về trang chủ"><X size={22} /></button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+          <h2 className="font-bold mb-2">Bạn bè của bạn ({s.friends.length})</h2>
+          {s.friends.length === 0 ? (
+            <p style={{ color: "rgba(255,255,255,.6)", fontSize: 14, marginBottom: 20 }}>Chưa có bạn bè. Kết bạn từ phòng chờ hoặc từ chủ phòng đang mở bên dưới.</p>
+          ) : (
+            <div className="space-y-2" style={{ marginBottom: 20 }}>
+              {s.friends.map((f) => { const room = hostRoom.get(f.name); return (
+                <div key={f.name} className="flex items-center gap-3 bg-black/30 rounded-xl px-4 py-2">
+                  {f.avatar ? <img src={f.avatar} alt="" className="w-[44px] h-[44px] rounded-full" /> : <div className="tan-avatar" style={{ width: 44, height: 44, fontSize: 18 }}>{f.name.charAt(0).toUpperCase()}</div>}
+                  <div className="flex-1"><div className="font-bold">{f.name}</div><div style={{ fontSize: 12, color: room ? "#4ade80" : "rgba(255,255,255,.6)" }}>{room ? `Đang mở phòng ${room.code} · ${room.bet}` : "Ngoại tuyến"}</div></div>
+                  {room && <button className="bg-teal-600 text-white font-bold px-4 py-1 rounded-full shrink-0" onClick={() => s.onlineJoinRoom(room.code)}>Tham gia</button>}
+                  <button className="text-white/60 font-bold px-2 shrink-0" onClick={() => s.removeFriend(f.name)} aria-label={`Xóa ${f.name}`}><X size={18} /></button>
+                </div>); })}
+            </div>
+          )}
+          <h2 className="font-bold mb-2">Đang mở phòng (bấm Kết bạn để thêm)</h2>
+          {s.publicRooms.length === 0 ? (
+            <p style={{ color: "rgba(255,255,255,.6)", fontSize: 14 }}>Hiện không có phòng công khai nào đang mở.</p>
+          ) : (
+            <div className="space-y-2">
+              {s.publicRooms.map((r) => { const isMe = r.hostName === s.playerName.trim(); const isF = myFriendNames.has(r.hostName); return (
+                <div key={r.code} className="flex items-center gap-3 bg-black/30 rounded-xl px-4 py-2">
+                  <div className="tan-avatar" style={{ width: 44, height: 44, fontSize: 18 }}>{r.hostName.charAt(0).toUpperCase()}</div>
+                  <div className="flex-1"><div className="font-bold">{r.hostName}</div><div style={{ fontSize: 12, opacity: 0.75 }}>Phòng {r.code} · {r.bet} · {r.playerCount}/{r.maxPlayers} người</div></div>
+                  {!isMe && (isF ? <span style={{ fontSize: 12, color: "#4ade80", fontWeight: 700 }}>✓ Bạn bè</span> : <button className="bg-teal-600 text-white font-bold px-4 py-1 rounded-full shrink-0" onClick={() => s.addFriend(r.hostName, null)}>Kết bạn</button>)}
+                </div>); })}
+            </div>
+          )}
+          <p style={{ color: "rgba(255,255,255,.5)", fontSize: 12, marginTop: 16 }}>Mẹo: trong phòng chờ, bấm Kết bạn cạnh tên người chơi để thêm vào danh sách. Danh sách lưu trên máy này.</p>
+        </div>
+      </div>
+    );
+  }
+  if (s.screen === "ranks") {
+    const myTier = tierOf(s.balance);
+    const tierIdx = ROOM_TIERS.findIndex((t) => t.id === myTier);
+    const curTier = ROOM_TIERS[tierIdx];
+    const prevMax = tierIdx > 0 ? ROOM_TIERS[tierIdx - 1].max : 0;
+    const nextTier = ROOM_TIERS[tierIdx + 1];
+    const progress = curTier.max === Infinity ? 100 : Math.min(100, Math.max(0, ((s.balance - prevMax) / (curTier.max - prevMax)) * 100));
+    const games = s.coinHistory.length;
+    const wins = s.coinHistory.filter((h) => (h.perPlayer[h.myId]?.net ?? 0) > 0).length;
+    const totalNet = s.coinHistory.reduce((a, h) => a + (h.perPlayer[h.myId]?.net ?? 0), 0);
+    return (
+      <div className="tan-home h-screen w-screen overflow-hidden text-white flex flex-col">
+        <div className="tan-rooms-top">
+          <h1 style={{ margin: "0 auto", fontSize: "clamp(20px, 5vh, 34px)", letterSpacing: 1, color: "#fef3c7" }}>XẾP HẠNG</h1>
+          <button className="tan-icon" onClick={s.goToLobby} aria-label="Về trang chủ"><X size={22} /></button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+          <div className="bg-black/30 rounded-2xl px-5 py-4" style={{ border: "1.5px solid rgba(251,191,36,.6)", marginBottom: 20 }}>
+            <div className="flex items-center gap-3">
+              {s.googleUser?.avatar ? <img src={s.googleUser.avatar} alt="" className="tan-avatar" style={{ objectFit: "cover" }} /> : <div className="tan-avatar">{(s.playerName.trim() || "B").charAt(0).toUpperCase()}</div>}
+              <div className="flex-1">
+                <div className="font-black" style={{ fontSize: 20 }}>{s.playerName}</div>
+                <div style={{ color: "#ffd97a", fontWeight: 700 }}>{s.balance.toLocaleString("vi-VN")} xu · Hạng {curTier.name}</div>
+              </div>
+              <Crown size={32} color="#facc15" />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <div className="flex justify-between" style={{ fontSize: 13, color: "rgba(255,255,255,.75)" }}><span>Tiến trình lên {nextTier ? nextTier.name : "hạng cao nhất"}</span><span>{Math.round(progress)}%</span></div>
+              <div style={{ height: 10, borderRadius: 999, background: "rgba(255,255,255,.15)", marginTop: 4, overflow: "hidden" }}><div style={{ height: "100%", width: `${progress}%`, background: "linear-gradient(90deg,#fcd34d,#f59e0b)", borderRadius: 999 }} /></div>
+              {nextTier && <div style={{ fontSize: 12, color: "rgba(255,255,255,.6)", marginTop: 4 }}>Cần hơn {formatCoins(curTier.max)} xu để lên {nextTier.name}.</div>}
+            </div>
+            <div className="flex gap-4" style={{ marginTop: 12, fontSize: 14 }}>
+              <span>Số ván: <b>{games}</b></span>
+              <span>Ván lãi: <b>{wins}</b></span>
+              <span>Tổng lãi: <b className={totalNet >= 0 ? "text-green-400" : "text-red-400"}>{totalNet > 0 ? "+" : ""}{totalNet.toLocaleString("vi-VN")}</b></span>
+            </div>
+          </div>
+          <h2 className="font-bold mb-2">Các hạng theo xu</h2>
+          <div className="tan-table" style={{ margin: 0, marginBottom: 20 }}>
+            <div className="tan-head" style={{ gridTemplateColumns: "1fr 1.2fr 1fr" }}><span>Hạng</span><span>Mức xu</span><span>Bạn</span></div>
+            {ROOM_TIERS.map((t, i) => { const pMax = i > 0 ? ROOM_TIERS[i - 1].max : 0; const range = t.max === Infinity ? `Trên ${formatCoins(pMax)}` : pMax === 0 ? `≤ ${formatCoins(t.max)}` : `${formatCoins(pMax)} – ${formatCoins(t.max)}`; const isMine = t.id === myTier; return (
+              <div key={t.id} className="tan-row" style={{ gridTemplateColumns: "1fr 1.2fr 1fr", background: isMine ? "rgba(250,204,21,.15)" : undefined }}><span style={{ fontWeight: 800 }}>{t.name}</span><span className="tan-bet">{range}</span><span>{isMine ? "Bạn đang ở đây" : ""}</span></div>); })}
+          </div>
+          <h2 className="font-bold mb-2">Đang chơi (phòng công khai)</h2>
+          {s.publicRooms.length === 0 ? (
+            <p style={{ color: "rgba(255,255,255,.6)", fontSize: 14 }}>Hiện không có phòng công khai nào đang mở.</p>
+          ) : (
+            <div className="space-y-2">
+              {s.publicRooms.map((r) => (
+                <div key={r.code} className="flex items-center gap-3 bg-black/30 rounded-xl px-4 py-2">
+                  <div className="tan-avatar" style={{ width: 44, height: 44, fontSize: 18 }}>{r.hostName.charAt(0).toUpperCase()}</div>
+                  <div className="flex-1"><div className="font-bold">{r.hostName}</div><div style={{ fontSize: 12, opacity: 0.75 }}>Phòng {r.code} · {r.bet} · {r.playerCount}/{r.maxPlayers} người</div></div>
+                </div>))}
             </div>
           )}
         </div>
