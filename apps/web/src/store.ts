@@ -67,7 +67,7 @@ export interface ChatMsg { id: number; from: string; text: string; }
 const BOT_REPLIES = ["Chơi hay đấy!", "Lá này khó đỡ quá!", "Tới lượt bạn rồi kìa.", "Haha, ván này căng!", "Để xem bạn đỡ sao đây.", "Bài mình cũng không đẹp lắm đâu."];
 
 interface GameStore {
-  screen: "login" | "lobby" | "rooms" | "create" | "waiting" | "game"; waitingCode: string | null; waitingCount: number; waitingReady: boolean; waitingMode: "private" | "quick" | "join"; myId: string; onlineMode: boolean; onlineRoom: { code: string; bet: string; level: number; maxPlayers: number; hostId: string; state: string; players: { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean; balance: number }[] } | null; onlineMyLobbyId: string | null; onlineWsStatus: string; onlineError: string | null; publicRooms: { code: string; bet: string; maxPlayers: number; playerCount: number; hostName: string }[]; googleUser: { name: string; email: string; avatar: string | null } | null; firebaseConfig: Record<string, string> | null; authError: string | null; configLoading: boolean;
+  screen: "login" | "lobby" | "rooms" | "create" | "waiting" | "game"; waitingCode: string | null; waitingCount: number; waitingReady: boolean; waitingMode: "private" | "quick" | "join"; myId: string; onlineMode: boolean; onlineRoom: { code: string; bet: string; level: number; maxPlayers: number; hostId: string; state: string; rematchReady: string[]; players: { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean; balance: number }[] } | null; onlineMyLobbyId: string | null; onlineWsStatus: string; onlineError: string | null; publicRooms: { code: string; bet: string; maxPlayers: number; playerCount: number; hostName: string }[]; googleUser: { name: string; email: string; avatar: string | null } | null; firebaseConfig: Record<string, string> | null; authError: string | null; configLoading: boolean;
   // Xu: số dư (ván bot lưu localStorage, ván online server quyết toán), mức bàn
   // đang chọn, kết quả quyết toán của ván vừa kết thúc, lịch sử quyết toán.
   balance: number; tableLevel: number; settlement: ClientSettlement | null; settledNonce: number; gameNonce: number; coinHistory: CoinHistoryEntry[];
@@ -92,7 +92,7 @@ interface GameStore {
   runBots: () => Promise<void>; addLog: (msg: string) => void;
   sendChat: (text: string) => void; clearNotice: () => void;
   autoLowestAttack: () => void; passAttack: () => void; followWindow: { mode: "take" | "add"; takerId?: string; key: number } | null; resolveTakeFollow: () => void; passFollow: () => void; takeAnimCards: string[] | null; clearTakeAnim: () => void;
-  onlineConnect: (m: Record<string, unknown>) => void; onlineCreateRoom: (level: number, count: number, isPublic?: boolean) => void; onlineJoinRoom: (code: string) => void; onlineReady: (v: boolean) => void; onlineStart: () => void; onlineLeave: () => void; loadPublicRooms: () => Promise<void>; setGoogleUser: (u: { name: string; email: string; avatar: string | null } | null) => void; loadFirebaseConfig: () => Promise<void>; firebaseLogin: () => Promise<void>; firebaseRedirectLogin: () => Promise<void>; googleLogout: () => Promise<void>;
+  onlineConnect: (m: Record<string, unknown>) => void; onlineCreateRoom: (level: number, count: number, isPublic?: boolean) => void; onlineJoinRoom: (code: string) => void; onlineReady: (v: boolean) => void; onlineStart: () => void; onlineLeave: () => void; onlineRematch: (ready: boolean) => void; loadPublicRooms: () => Promise<void>; setGoogleUser: (u: { name: string; email: string; avatar: string | null } | null) => void; loadFirebaseConfig: () => Promise<void>; firebaseLogin: () => Promise<void>; firebaseRedirectLogin: () => Promise<void>; googleLogout: () => Promise<void>;
 }
 
 // Lá mới xuất hiện trên bàn sau một nước đi (so với trước nước đi).
@@ -186,7 +186,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   sortHand: () => {},
   autoLowestAttack: () => {},
   passAttack: () => {},
-  followWindow: null, resolveTakeFollow: () => {}, passFollow: () => {}, takeAnimCards: null, clearTakeAnim: () => {}, onlineConnect: () => {}, onlineCreateRoom: () => {}, onlineJoinRoom: () => {}, onlineReady: () => {}, onlineStart: () => {}, onlineLeave: () => {}, loadPublicRooms: async () => {}, setGoogleUser: () => {}, loadFirebaseConfig: async () => {}, firebaseLogin: async () => {}, firebaseRedirectLogin: async () => {}, googleLogout: async () => {},
+  followWindow: null, resolveTakeFollow: () => {}, passFollow: () => {}, takeAnimCards: null, clearTakeAnim: () => {}, onlineConnect: () => {}, onlineCreateRoom: () => {}, onlineJoinRoom: () => {}, onlineReady: () => {}, onlineStart: () => {}, onlineLeave: () => {}, onlineRematch: () => {}, loadPublicRooms: async () => {}, setGoogleUser: () => {}, loadFirebaseConfig: async () => {}, firebaseLogin: async () => {}, firebaseRedirectLogin: async () => {}, googleLogout: async () => {},
 }));
 
 // Gán các action sau khi store tạo xong để tránh vòng tham chiếu trong create().
@@ -387,7 +387,7 @@ store.setState({
         onlineSaveToken(String(m.code), String(m.token));
         store.setState({ onlineMyLobbyId: String(m.playerId), waitingCode: String(m.code), roomCode: String(m.code), screen: "waiting", onlineMode: true, onlineError: null });
       } else if (m.type === "room") {
-        store.setState({ onlineRoom: { code: String(m.code), bet: String(m.bet), level: Number(m.level || 0), maxPlayers: Number(m.maxPlayers), hostId: String(m.hostId), state: String(m.state), players: (m.players as { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean; balance: number }[]) }, waitingCode: String(m.code) });
+        store.setState({ onlineRoom: { code: String(m.code), bet: String(m.bet), level: Number(m.level || 0), maxPlayers: Number(m.maxPlayers), hostId: String(m.hostId), state: String(m.state), rematchReady: (m.rematchReady as string[]) || [], players: (m.players as { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean; balance: number }[]) }, waitingCode: String(m.code) });
         if (m.state === "playing" && st.screen !== "game") store.setState({ screen: "game" });
       } else if (m.type === "game") {
         const view = m.view as Record<string, unknown>;
@@ -455,6 +455,7 @@ store.setState({
   onlineReady: (v: boolean) => { store.setState({ waitingReady: v }); onlineSend({ type: "ready", ready: v }); },
   onlineStart: () => { onlineSend({ type: "start" }); },
   onlineLeave: () => { try { onlineSend({ type: "leave" }); } catch { /* bỏ qua */ } try { onlineWs?.close(); } catch { /* bỏ qua */ } store.setState({ onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, game: null, screen: "lobby" }); },
+  onlineRematch: (ready: boolean) => { try { onlineSend({ type: "rematch", ready }); } catch { /* bỏ qua */ } },
   setGoogleUser: (u: { name: string; email: string; avatar: string | null } | null) => { store.setState({ googleUser: u }); if (u) store.setState({ playerName: u.name }); },
   loadFirebaseConfig: async () => {
     // Backend Render gói free ngủ đông: lần gọi đầu có thể chậm 30-50s, nên không vội kết luận

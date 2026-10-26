@@ -109,6 +109,7 @@ function lobbyRoomView(lobby) {
     code: lobby.code, bet: lobby.bet, level: lobby.level || 0, maxPlayers: lobby.maxPlayers, hostId: lobby.hostId,
     state: lobby.game ? (lobby.game.phase === "FINISHED" ? "finished" : "playing") : "waiting",
     players: lobby.players.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar || null, ready: p.ready, online: !!p.socket, isHost: p.id === lobby.hostId, google: !!p.googleId, balance: lobby.balances ? (lobby.balances.get(playerKey(p)) ?? START_BALANCE) : START_BALANCE })),
+    rematchReady: [...(lobby.rematchReady || [])],
   };
 }
 // Khóa số dư: tài khoản Google dùng googleId (ổn định qua các phòng),
@@ -158,6 +159,27 @@ function startLobbyGame(lobby) {
   const game = createGame({ playerCount: lobby.players.length, playerNames: names, allowTransfer: false });
   lobby.players.forEach((p, i) => { p.engineId = game.players[i].id; });
   lobby.game = game; lobby.pending = null; lobby.settlement = null;
+  broadcastRoom(lobby); broadcastGame(lobby); return true;
+}
+// Ván lại online: chỉ bắt đầu khi mọi người còn online trong phòng đều đã
+// chọn ván lại (và ít nhất 2 người). Người bấm Về sảnh (leave) hoặc mất kết
+// nối sẽ bị xóa khỏi diện tính, nên không kẹt phòng. Người không chơi ván
+// lại bị đánh dấu left để token cũ không gắn lại vào ván mới.
+function maybeStartRematch(lobby) {
+  if (!lobby.game || lobby.game.phase !== "FINISHED") return false;
+  const eligible = lobby.players.filter((p) => !p.left && p.socket);
+  if (eligible.length < 2) return false;
+  if (!eligible.every((p) => lobby.rematchReady.has(p.id))) return false;
+  const poor = eligible.find((p) => (lobby.balances.get(playerKey(p)) ?? START_BALANCE) < minBalance(lobby.level));
+  if (poor) {
+    broadcast(lobby, { type: "error", code: "NOT_ENOUGH_BALANCE", message: `${poor.name} chưa đủ xu vào bàn mức ${formatCoins(lobby.level)} (cần tối thiểu ${formatCoins(minBalance(lobby.level))})` });
+    return false;
+  }
+  const game = createGame({ playerCount: eligible.length, playerNames: eligible.map((p) => p.name), allowTransfer: false });
+  eligible.forEach((p, i) => { p.engineId = game.players[i].id; });
+  for (const p of lobby.players) if (!eligible.includes(p)) p.left = true;
+  clearPending(lobby);
+  lobby.game = game; lobby.pending = null; lobby.settlement = null; lobby.rematchReady = new Set();
   broadcastRoom(lobby); broadcastGame(lobby); return true;
 }
 function addablePlayers(lobby, excludeEngineIds) {
@@ -281,7 +303,7 @@ wss.on("connection", (ws) => {
         const session = msg.sessionToken ? sessions.get(msg.sessionToken) : null;
         const code = makeCode();
         const level = isValidLevel(Number(msg.level)) ? Number(msg.level) : 50_000;
-        const lb = { code, bet: formatCoins(level), level, maxPlayers: Math.min(4, Math.max(2, Number(msg.maxPlayers || 4))), isPublic: !!msg.isPublic, hostId: null, players: [], game: null, processor: createCommandProcessor(), pending: null, balances: new Map(), settlement: null };
+        const lb = { code, bet: formatCoins(level), level, maxPlayers: Math.min(4, Math.max(2, Number(msg.maxPlayers || 4))), isPublic: !!msg.isPublic, hostId: null, players: [], game: null, processor: createCommandProcessor(), pending: null, balances: new Map(), settlement: null, rematchReady: new Set() };
         const pl = { id: randomUUID(), token: randomUUID(), name: (session?.name || msg.name || "Bạn").toString().slice(0, 30), avatar: session?.avatar || msg.avatar || null, googleId: session?.googleId || null, ready: false, socket: ws, engineId: null };
         lb.hostId = pl.id; lb.players.push(pl); lobbies.set(code, lb); attach(lb, pl);
         ws.send(JSON.stringify({ type: "joined", playerId: pl.id, token: pl.token, code, isHost: true }));
@@ -290,10 +312,11 @@ wss.on("connection", (ws) => {
       if (msg.type === "join") {
         const lb = lobbies.get(String(msg.code || ""));
         if (!lb) return err("ROOM_NOT_FOUND", "Không có phòng với mã này");
-        // Reconnect bằng token phòng
+        // Reconnect bằng token phòng (người đã rời phòng hoặc không chơi ván
+        // lại thì không gắn lại — rơi xuống nhánh vào mới và bị chặn nếu ván đã chạy)
         if (msg.token) {
           const old = lb.players.find((p) => p.token === msg.token);
-          if (old) { attach(lb, old); ws.send(JSON.stringify({ type: "joined", playerId: old.id, token: old.token, code: lb.code, isHost: old.id === lb.hostId, reconnected: true })); broadcastRoom(lb); if (lb.game) sendTo(lb, old, { type: "game", view: publicView(lb.game, old.engineId), myEngineId: old.engineId }); return; }
+          if (old && !old.left) { attach(lb, old); ws.send(JSON.stringify({ type: "joined", playerId: old.id, token: old.token, code: lb.code, isHost: old.id === lb.hostId, reconnected: true })); broadcastRoom(lb); if (lb.game) sendTo(lb, old, { type: "game", view: publicView(lb.game, old.engineId), myEngineId: old.engineId }); return; }
         }
         if (lb.game) return err("GAME_ALREADY_STARTED", "Ván đã bắt đầu, không vào giữa ván được");
         if (lb.players.length >= lb.maxPlayers) return err("ROOM_FULL", "Phòng đã đủ người");
@@ -316,6 +339,12 @@ wss.on("connection", (ws) => {
         if (player.id !== lobby.hostId) return err("NOT_HOST", "Chỉ chủ phòng mới bắt đầu được");
         if (lobby.game) return err("GAME_ALREADY_STARTED", "Ván đã bắt đầu");
         startLobbyGame(lobby); return;
+      }
+      if (msg.type === "rematch") {
+        if (!lobby.game || lobby.game.phase !== "FINISHED") return err("GAME_NOT_FINISHED", "Ván chưa kết thúc");
+        if (player.left) return err("NOT_IN_ROOM", "Bạn đã rời phòng");
+        if (msg.ready) lobby.rematchReady.add(player.id); else lobby.rematchReady.delete(player.id);
+        broadcastRoom(lobby); maybeStartRematch(lobby); return;
       }
       if (msg.type === "command") {
         if (!lobby.game) return err("GAME_NOT_STARTED", "Ván chưa bắt đầu");
@@ -349,7 +378,7 @@ wss.on("connection", (ws) => {
           lobby.players = lobby.players.filter((p) => p.id !== player.id);
           if (!lobby.players.length) { lobbies.delete(lobby.code); }
           else { if (lobby.hostId === player.id) lobby.hostId = lobby.players[0].id; broadcastRoom(lobby); }
-        } else { player.socket = null; broadcastRoom(lobby); }
+        } else { player.socket = null; player.left = true; lobby.rematchReady.delete(player.id); broadcastRoom(lobby); maybeStartRematch(lobby); }
         lobby = null; player = null; return;
       }
       return err("UNKNOWN_TYPE", "Loại tin nhắn không hỗ trợ");
@@ -360,12 +389,14 @@ wss.on("connection", (ws) => {
   ws.on("close", () => {
     if (!lobby || !player) return;
     player.socket = null;
+    lobby.rematchReady.delete(player.id);
     if (!lobby.game) {
       // Phòng chờ: giữ ghế 1 lúc cho reconnect, nhưng nếu mọi người đều offline thì dọn phòng sau 60s
       const lb = lobby;
       setTimeout(() => { if (lb.players.every((p) => !p.socket)) lobbies.delete(lb.code); }, 60000);
     }
     broadcastRoom(lobby);
+    maybeStartRematch(lobby);
   });
 });
 

@@ -1007,6 +1007,23 @@ export default function App() {
                 )}
               </div>
             )}
+            {s.onlineRoom && (() => {
+              const room = s.onlineRoom!;
+              const readyIds = room.rematchReady || [];
+              const eligible = room.players.filter((pl) => pl.online);
+              const readyNames = eligible.filter((pl) => readyIds.includes(pl.id)).map((pl) => pl.name);
+              const iAmReady = s.onlineMyLobbyId ? readyIds.includes(s.onlineMyLobbyId) : false;
+              const canRematch = eligible.length >= 2;
+              return (
+                <div className="mt-4 border-t border-white/10 pt-3 text-center">
+                  <p className="text-sm font-bold text-yellow-300">Ván lại: {readyIds.length}/{eligible.length} người đã chọn</p>
+                  {readyNames.length > 0 && <p className="text-white/70 text-xs mt-1">Đã chọn: {readyNames.join(", ")}</p>}
+                  {!canRematch && <p className="text-white/60 text-xs mt-1">Cần ít nhất 2 người đang online để ván lại.</p>}
+                  {canRematch && eligible.length > readyIds.length && <p className="text-white/60 text-xs mt-1">Chờ mọi người trong phòng cùng chọn ván lại là tự vào ván mới…</p>}
+                  <button className={`font-bold px-6 py-3 rounded-full mt-3 ${iAmReady ? "bg-white/15 text-white border border-white/30" : "bg-teal-400 text-black"}`} disabled={!canRematch} onClick={() => s.onlineRematch(!iAmReady)}>{iAmReady ? "Hủy ván lại" : "Ván lại"}</button>
+                </div>
+              );
+            })()}
             <button className="bg-yellow-400 text-black font-bold px-6 py-3 rounded-full mt-3" onClick={s.backToLobby}>Về sảnh</button>
           </div>
         </div>
