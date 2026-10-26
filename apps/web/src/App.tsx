@@ -772,20 +772,7 @@ export default function App() {
                   <img src="/durak/cards/back.png" alt="" className="absolute rounded shadow-2xl" style={{ width: 72, height: 100, left: 0, top: 0 }} />
                 </div>
                 <div className="font-black text-3xl text-yellow-300 mb-4" style={{ textShadow: "0 2px 12px rgba(0,0,0,.9)" }}>Đang phát bài…</div>
-                <div className="flex gap-6 justify-center">
-                  {game.players.map((pl, si) => {
-                    const countForSeat = starting.deal > si ? Math.min(8, Math.floor((starting.deal - 1 - si) / totalPlayers) + 1) : 0;
-                    return (
-                      <div key={pl.name} className="text-center">
-                        <div className="flex -space-x-3 justify-center mb-2 h-[50px]">
-                          {Array.from({ length: countForSeat }, (_, i) => <img key={i} src="/durak/cards/back.png" alt="" className="w-[36px] h-[50px] rounded" />)}
-                        </div>
-                        <div className="text-sm font-semibold" style={{ textShadow: "0 1px 6px rgba(0,0,0,.9)" }}>{pl.name}: {countForSeat}/8</div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {/* Từng lá bay từ giữa bàn ra đúng phía người nhận. */}
+                {/* Không hiện số lượng từng ghế nữa: lá chỉ bay từ giữa bàn ra đúng phía tay người nhận. */}
                 {Array.from({ length: starting.deal }, (_, i) => i + 1).map((d) => {
                   const pl = game.players[(d - 1) % totalPlayers];
                   return (
