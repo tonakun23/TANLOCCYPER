@@ -397,7 +397,7 @@ export default function App() {
         </div>
       </div>
       <div className="tan-shop">
-        <span className="tan-coins"><img src="/icons/chip-xu.svg" alt="Xu" style={{ width: "min(7vh, 44px)", height: "min(7vh, 44px)" }} /> {s.balance.toLocaleString("vi-VN")}</span>
+        <span className="tan-coins"><img src="/icons/coin.svg" alt="Xu" style={{ width: "min(7vh, 44px)", height: "min(7vh, 44px)" }} /> {s.balance.toLocaleString("vi-VN")}</span>
       </div>
       <div style={{ display: "flex", gap: 12 }}>
         <button className="tan-icon" onClick={s.goToFriends} aria-label="Bạn bè"><Users {...ic} /></button>
