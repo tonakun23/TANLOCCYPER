@@ -818,7 +818,7 @@ export default function App() {
 
   let hint = "Đang chờ bot đánh…";
   if (game.phase === "FINISHED") hint = game.loserId === myId ? "Bạn là người thua ván này." : `${game.players.find((p) => p.id === game.loserId)?.name} thua ván này.`;
-  else if (iAmDefender && undefended.length) hint = "Tới lượt bạn đỡ: bấm lá bài để đỡ, hoặc bấm Lên bài bất cứ lúc nào (kể cả khi đỡ được).";
+  else if (iAmDefender && undefended.length) hint = "Tới lượt bạn đỡ: bấm lá bài viền vàng để đỡ, hoặc bấm Lên bài bất cứ lúc nào (kể cả khi đỡ được).";
   else if (game.phase === "DRAWING" && game.pendingDraw[0] === myId) hint = "Tới lượt bạn bốc bài: bấm Bốc bài, 3 giây không bấm sẽ tự bốc.";
   else if (game.phase === "DRAWING") hint = "Đang bốc bài: chờ người khác bốc đủ 8 lá…";
   else if (iAmAttacker && game.table.length === 0) hint = "Tới lượt bạn tấn: bấm 1 lá bài để đánh ra.";
@@ -980,7 +980,7 @@ export default function App() {
       </div>
         {me?.hand.map((c, i) => (
           <div key={c.id} className={i === 0 ? "" : "-ml-6"}>
-            <CardView card={c} selected={s.selected === c.id} highlight={!!game && game.defenderId !== myId && game.table.length > 0 && canAttackCard(game, myId, c)} onClick={() => s.playCard(c.id)} />
+            <CardView card={c} selected={s.selected === c.id} highlight={!!game && game.table.length > 0 && ((game.defenderId !== myId && canAttackCard(game, myId, c)) || (game.defenderId === myId && !s.followWindow && game.table.some((x) => !x.defense && canBeat(x.attack, c, game.trumpSuit))))} onClick={() => s.playCard(c.id)} />
           </div>
         ))}
         {!me?.finished && (
