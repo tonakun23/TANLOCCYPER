@@ -347,7 +347,7 @@ export default function App() {
         </div>
       </div>
       <div className="tan-shop">
-        <span className="tan-coins"><img src="/icons/coin.svg" alt="Xu" style={{ width: "min(7vh, 44px)", height: "min(7vh, 44px)" }} /> {s.balance.toLocaleString("vi-VN")}</span>
+        <span className="tan-coins"><img src="/icons/chip-xu.svg" alt="Xu" style={{ width: "min(7vh, 44px)", height: "min(7vh, 44px)" }} /> {s.balance.toLocaleString("vi-VN")}</span>
       </div>
       <div style={{ display: "flex", gap: 12 }}>
         <button className="tan-icon" onClick={s.goToFriends} aria-label="Bạn bè"><Users {...ic} /></button>
@@ -690,14 +690,18 @@ export default function App() {
             <div className="tan-fan">
               <img src="/durak/cards/AS.png" alt="A bích" /><img src="/durak/cards/AD.png" alt="A rô" /><img src="/durak/cards/AC.png" alt="A chuồn" /><img src="/durak/cards/AH.png" alt="A cơ" />
             </div>
-            <img src="/icons/chips-stack.png" alt="Chip bài" style={{ position: "absolute", bottom: "22%", left: "50%", transform: "translateX(-50%)", width: "min(22vw, 30vh)" }} />
+            <div style={{ position: "absolute", bottom: "18%", left: "50%", transform: "translateX(-50%)", width: "min(20vw, 26vh)", height: "calc(min(20vw, 26vh) + 30px)", filter: "drop-shadow(0 8px 12px rgba(0,0,0,.45))" }}>
+              <img src="/icons/chip-1m.svg" alt="Chip 1M" draggable={false} style={{ position: "absolute", bottom: 0, left: 0, width: "100%" }} />
+              <img src="/icons/chip-5m.svg" alt="Chip 5M" draggable={false} style={{ position: "absolute", bottom: 15, left: 0, width: "100%" }} />
+              <img src="/icons/chip-500k.svg" alt="Chip 500K" draggable={false} style={{ position: "absolute", bottom: 30, left: 0, width: "100%" }} />
+            </div>
             <h2>CHƠI NGAY</h2>
           </button>
           <button className="tan-play" onClick={() => s.goToCreate(true)}>
             <div className="tan-fan">
               <img src="/durak/cards/KS.png" alt="K bích" /><img src="/durak/cards/QD.png" alt="Q rô" /><img src="/durak/cards/JC.png" alt="J chuồn" /><img src="/durak/cards/AH.png" alt="A cơ" />
             </div>
-            <img src="/icons/chip-gold.png" alt="Chip vàng" style={{ position: "absolute", bottom: "26%", right: "14%", width: "min(11vw, 17vh)", minWidth: 54 }} />
+            <img src="/icons/chip-5m.svg" alt="Chip vàng" style={{ position: "absolute", bottom: "26%", right: "14%", width: "min(11vw, 17vh)", minWidth: 54 }} />
             <h2>CHƠI VỚI BẠN</h2>
           </button>
         </div>
