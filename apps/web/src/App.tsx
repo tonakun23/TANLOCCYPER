@@ -26,6 +26,14 @@ function tierOf(bet: string | number): string {
   for (const t of ROOM_TIERS) if (v <= t.max) return t.id;
   return "master";
 }
+// Mở link trong Messenger/Facebook/Instagram/Zalo... là trình duyệt nhúng (WebView):
+// Google chặn đăng nhập từ WebView nên bấm google login ở đó là thất bại luôn.
+// Nhận diện: app Meta có FBAN/FBAV trong UA; WebView Android có ";wv".
+function isInAppBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return /FBAN|FBAV/i.test(ua) || (/Android/i.test(ua) && /; wv/.test(ua));
+}
 
 export default function App() {
   const s = useGameStore();
@@ -49,6 +57,7 @@ export default function App() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [linkCopied, setLinkCopied] = useState(false);
   useEffect(() => { void s.loadFirebaseConfig(); }, []);
   // Màn CHƠI NGAY: tải bảng phòng thật, làm mới mỗi 5 giây khi đang ở màn này.
   useEffect(() => {
@@ -627,6 +636,8 @@ export default function App() {
     );
   }
   if (s.screen === "login") {
+    const inApp = isInAppBrowser();
+    const isAndroid = /Android/i.test(navigator.userAgent || "");
     return (
       <div className="tan-home h-screen w-screen overflow-hidden text-white relative">
         {/* Adam (trai) va Chua cung cac thien than (phai) giay tay ve la bai o giua. */}
@@ -636,6 +647,20 @@ export default function App() {
           <div style={{ textAlign: "center", textShadow: "0 2px 12px rgba(0,0,0,.6)" }}>
             <div style={{ fontSize: 46, fontWeight: 900, letterSpacing: 2 }}>TẤN ONLINE</div>
           </div>
+          {inApp && (
+            <div style={{ maxWidth: 380, textAlign: "center", background: "rgba(0,0,0,.55)", border: "1.5px solid rgba(250,204,21,.7)", borderRadius: 12, padding: 12 }}>
+              <p style={{ color: "#fde68a", fontSize: 14, fontWeight: 800, margin: 0 }}>Bạn đang mở game trong Messenger/Facebook</p>
+              <p style={{ color: "#fff", fontSize: 13, margin: "6px 0 0" }}>Google chặn đăng nhập trong khung chat nên bấm đăng nhập ở đây sẽ không được. Hãy mở game bằng trình duyệt Chrome/Safari rồi đăng nhập bình thường.</p>
+              <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10, flexWrap: "wrap" }}>
+                {isAndroid && (
+                  <button className="bg-yellow-400 text-black font-bold px-4 py-2 rounded-full text-sm" onClick={() => { window.location.href = `intent://${window.location.host}${window.location.pathname}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`; }}>Mở bằng trình duyệt</button>
+                )}
+                <button className="bg-white text-black font-bold px-4 py-2 rounded-full text-sm" onClick={async () => { try { await navigator.clipboard?.writeText(window.location.href); setLinkCopied(true); } catch { /* người dùng tự giữ link bên dưới */ } }}>{linkCopied ? "Đã sao chép ✓" : "Sao chép link game"}</button>
+              </div>
+              <p style={{ color: "rgba(255,255,255,.7)", fontSize: 12, margin: "8px 0 0", wordBreak: "break-all" }}>{window.location.href}</p>
+              {!isAndroid && <p style={{ color: "rgba(255,255,255,.7)", fontSize: 12, margin: "6px 0 0" }}>Trên iPhone: bấm nút Chia sẻ trong khung này → "Mở trong Safari".</p>}
+            </div>
+          )}
           {/* La At Co to, lo lung giua hai ban tay; nut dang nhap la mot phan cua la bai. */}
           <div className="login-card-float" style={{ background: "#fff", color: "#111", borderRadius: 18, height: "min(46vh, 360px)", aspectRatio: "5 / 7", maxWidth: "84vw", display: "flex", flexDirection: "column", padding: 16, boxSizing: "border-box" }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1 }}>
