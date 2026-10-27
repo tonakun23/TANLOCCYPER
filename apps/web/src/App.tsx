@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useGameStore } from "./store";
+import { useGameStore, saveBalance } from "./store";
 import { CardView } from "./components/CardView";
 import { TableCanvas } from "./components/TableCanvas";
 import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, canAttackCard, cardLabel } from "../../../packages/game-core/src/engine";
@@ -41,6 +41,11 @@ function gameStage(): { phone: boolean; scale: number; left: number; top: number
 // Vòng quay SPIN kiểu ảnh Tony gửi: vành đỏ đậm + đinh vàng + chữ SPIN vàng.
 // 8 ô (bản thử: chỉ hiện kết quả, chưa cộng xu — chờ chốt luật thưởng).
 const SPIN_PRIZES = ["10K", "1M", "50K", "2M", "100K", "500K", "200K", "Lần sau"];
+const SPIN_DAILY_LIMIT = 3;
+function spinTodayKey(): string { return new Date().toLocaleDateString("en-CA"); }
+function spinCountToday(): number { try { const j = JSON.parse(localStorage.getItem("tanloc-spin") || "null") as { date?: string; count?: number } | null; if (j && j.date === spinTodayKey()) return Number(j.count) || 0; } catch { /* bỏ qua */ } return 0; }
+function spinLeftToday(): number { return Math.max(0, SPIN_DAILY_LIMIT - spinCountToday()); }
+function spinBumpToday(): number { const d = spinTodayKey(); const c = spinCountToday() + 1; try { localStorage.setItem("tanloc-spin", JSON.stringify({ date: d, count: c })); } catch { /* bỏ qua */ } return c; }
 function spinPolar(cx: number, cy: number, r: number, deg: number): [number, number] {
   const a = (deg - 90) * Math.PI / 180;
   return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
@@ -89,6 +94,7 @@ export default function App() {
   const [seconds, setSeconds] = useState(30);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatText, setChatText] = useState("");
+  const chatListRef = useRef<HTMLDivElement | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
   const [soundVol, setSoundVol] = useState(70);
@@ -110,6 +116,7 @@ export default function App() {
   const [spinRot, setSpinRot] = useState(0);
   const [spinBusy, setSpinBusy] = useState(false);
   const [, setSpinResult] = useState<string | null>(null);
+  const [spinsLeft, setSpinsLeft] = useState<number>(() => spinLeftToday());
   const [stage, setStage] = useState(gameStage);
   useEffect(() => {
     const update = () => setStage(gameStage());
@@ -152,6 +159,10 @@ export default function App() {
     const id = setTimeout(() => setBubble(null), 6000);
     return () => clearTimeout(id);
   }, [bubble]);
+  // Panel chat mở: có tin mới thì tự cuộn xuống cuối để đọc được ngay.
+  useEffect(() => {
+    if (chatOpen && chatListRef.current) chatListRef.current.scrollTop = chatListRef.current.scrollHeight;
+  }, [s.chat, chatOpen]);
   // Toast thông báo: hiện ~3 giây rồi tự ẩn.
   useEffect(() => {
     if (!s.notice) return;
@@ -407,14 +418,23 @@ export default function App() {
       </div>
     </div>
   );
-  // Vòng quay SPIN (bản thử: chỉ quay, chưa cộng xu — chờ chốt luật thưởng).
+  // Vòng quay SPIN: trúng cộng xu vào số dư, 3 lượt/ngày (tạm — chờ Tony chốt số lượt).
   const spinWheel = () => {
     if (spinBusy) return;
+    if (spinLeftToday() <= 0) { s.addLog("Hết lượt quay hôm nay, mai quay lại nhé!"); return; }
     setSpinBusy(true); setSpinResult(null);
     const seg = Math.floor(Math.random() * 8);
     const mid = seg * 45 + 22.5;
     setSpinRot((prev) => prev - (prev % 360) + 360 * 5 + (360 - mid));
-    window.setTimeout(() => { setSpinResult(SPIN_PRIZES[seg]); setSpinBusy(false); }, 5100);
+    window.setTimeout(() => {
+      setSpinResult(SPIN_PRIZES[seg]); setSpinBusy(false);
+      const c = spinBumpToday(); setSpinsLeft(Math.max(0, SPIN_DAILY_LIMIT - c));
+      if (SPIN_PRIZES[seg] !== "Lần sau") {
+        const amt = parseBet(SPIN_PRIZES[seg]);
+        const nb = useGameStore.getState().balance + amt; useGameStore.setState({ balance: nb }); saveBalance(nb);
+        s.addLog(`Quay trúng ${SPIN_PRIZES[seg]} — đã cộng ${amt.toLocaleString("vi-VN")} xu vào số dư!`);
+      } else { s.addLog("Quay trúng Lần sau — lượt này không cộng xu."); }
+    }, 5100);
   };
   const homeBottom = (
     <div className="tan-bottom">
@@ -424,7 +444,7 @@ export default function App() {
         <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><Gift {...ic} /></span><span className="tan-badge">10</span></button>
         <button className="tan-bottom-btn" onClick={() => setHistoryOpen(true)} aria-label="Lịch sử xu"><span className="circle"><ClipboardList {...ic} /></span></button>
       </div>
-      <button className="tan-spin" onClick={() => setSpinOpen(true)} aria-label="Vòng quay">SPIN</button>
+      <button className="tan-spin" onClick={() => setSpinOpen(true)} aria-label="Vòng quay">SPIN{spinsLeft > 0 && (<span className="absolute -top-2 right-3 z-10 bg-yellow-400 text-red-900 font-black text-xs min-w-[22px] h-[22px] px-1 rounded-full border-2 border-white flex items-center justify-center">{spinsLeft}</span>)}</button>
       <div className="tan-bottom-group">
         <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle">f</span></button>
         <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><Users {...ic} /></span></button>
@@ -749,10 +769,10 @@ export default function App() {
             <div className="tan-fan">
               <img src="/durak/cards/AS.png" alt="A bích" /><img src="/durak/cards/AD.png" alt="A rô" /><img src="/durak/cards/AC.png" alt="A chuồn" /><img src="/durak/cards/AH.png" alt="A cơ" />
             </div>
-            <div style={{ position: "absolute", bottom: "18%", left: "50%", transform: "translateX(-50%)", width: "calc(min(11vw, 17vh) + 48px)", height: "min(11vw, 17vh)", filter: "drop-shadow(0 8px 12px rgba(0,0,0,.45))" }}>
+            <div style={{ position: "absolute", bottom: "18%", left: "50%", transform: "translateX(-50%)", width: "calc(min(11vw, 17vh) * 5 / 3)", height: "min(11vw, 17vh)", filter: "drop-shadow(0 8px 12px rgba(0,0,0,.45))" }}>
               <img src="/icons/chip-1m.svg" alt="Chip 1M" draggable={false} style={{ position: "absolute", bottom: 0, left: 0, width: "min(11vw, 17vh)", minWidth: 54 }} />
-              <img src="/icons/chip-5m.svg" alt="Chip 5M" draggable={false} style={{ position: "absolute", bottom: 0, left: 24, width: "min(11vw, 17vh)", minWidth: 54 }} />
-              <img src="/icons/chip-500k.svg" alt="Chip 500K" draggable={false} style={{ position: "absolute", bottom: 0, left: 48, width: "min(11vw, 17vh)", minWidth: 54 }} />
+              <img src="/icons/chip-5m.svg" alt="Chip 5M" draggable={false} style={{ position: "absolute", bottom: 0, left: "calc(min(11vw, 17vh) / 3)", width: "min(11vw, 17vh)", minWidth: 54 }} />
+              <img src="/icons/chip-500k.svg" alt="Chip 500K" draggable={false} style={{ position: "absolute", bottom: 0, left: "calc(min(11vw, 17vh) * 2 / 3)", width: "min(11vw, 17vh)", minWidth: 54 }} />
             </div>
             <h2>CHƠI NGAY</h2>
           </button>
@@ -931,6 +951,7 @@ export default function App() {
             <div key={p.id} className={`${pos} z-20 flex items-center gap-2 bg-black/55 px-2 py-1 rounded-xl text-sm ${p.id === game.attackerId || p.id === game.defenderId ? "outline outline-yellow-400" : ""}`}>
               <div className="relative shrink-0" style={p.id === game.defenderId && isDefending ? { padding: 3, borderRadius: "50%", background: `conic-gradient(#facc15 ${defendFraction * 100}%, rgba(255,255,255,0.2) 0)`, boxShadow: "0 0 16px rgba(250,204,21,0.9)" } : undefined}>
                 {s.onlineMode && s.onlineRoom?.players.find((x) => x.name === p.name)?.avatar ? <img src={s.onlineRoom!.players.find((x) => x.name === p.name)!.avatar!} alt={p.name} className="w-[100px] h-[100px] rounded-full block" style={game.phase === "FINISHED" && game.loserId === p.id ? { filter: "grayscale(1)", opacity: 0.55 } : undefined} /> : s.onlineMode ? <div className="w-[100px] h-[100px] rounded-full bg-red-900 flex items-center justify-center text-3xl font-black" style={game.phase === "FINISHED" && game.loserId === p.id ? { filter: "grayscale(1)", opacity: 0.55 } : undefined}>{p.name.charAt(0).toUpperCase()}</div> : <img src={`/durak/ui/avatar_${(p.name.replace("Bot ", "") || "1")}.png`} alt={p.name} className="w-[100px] h-[100px] rounded-full block" style={game.phase === "FINISHED" && game.loserId === p.id ? { filter: "grayscale(1)", opacity: 0.55 } : undefined} />}
+                {s.chatBubbles[p.name] && (<div className="absolute bottom-full left-0 mb-2 z-50 max-w-[220px] bg-white text-black text-sm font-medium px-3 py-2 rounded-2xl rounded-bl-sm shadow-lg break-words">{s.chatBubbles[p.name].text}</div>)}
                 {p.finished && game.finishOrder[0] === p.id && <span className="absolute -top-2 -right-2 bg-yellow-400 text-black font-black text-xs px-2 py-1 rounded-full border-2 border-white shadow flex items-center gap-1"><Crown size={14} /> 1</span>}
                 {p.id === game.defenderId && isDefending && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-400 text-black font-black text-[11px] px-1.5 rounded-full border border-white">{defendSeconds}s</span>}
                 {(game.phase === "ATTACKING" || game.phase === "DEFENDING") && p.id === game.attackerId && <span className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"><span className="flex items-center justify-center rounded-full bg-black/45 p-2"><Swords size={44} className="text-yellow-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]" /></span></span>}
@@ -1025,7 +1046,7 @@ export default function App() {
             <span className="flex items-center gap-1"><MessageCircle size={16} /> Chat trong ván</span>
             <button onClick={() => setChatOpen(false)} aria-label="Đóng chat"><X size={18} /></button>
           </div>
-          <div className="flex-1 overflow-auto p-4 space-y-3 text-base">
+          <div ref={chatListRef} className="flex-1 overflow-auto p-4 space-y-3 text-base">
             {s.chat.map((m) => (
               <div key={m.id} className={m.from === (s.playerName.trim() || "Bạn") ? "text-right" : ""}>
                 <span className="text-yellow-300 text-xs font-semibold">{m.from}: </span>

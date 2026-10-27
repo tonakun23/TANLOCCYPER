@@ -51,7 +51,7 @@ function saveHistory(h: CoinHistoryEntry[]) { try { localStorage.setItem("tanloc
 export interface FriendEntry { name: string; avatar: string | null; }
 function loadFriends(): FriendEntry[] { try { const j = JSON.parse(localStorage.getItem("tanloc-friends") || "[]"); return Array.isArray(j) ? j.filter((f) => f && typeof f.name === "string") : []; } catch { return []; } }
 function saveFriends(f: FriendEntry[]) { try { localStorage.setItem("tanloc-friends", JSON.stringify(f.slice(0, 100))); } catch { /* bỏ qua */ } }
-function saveBalance(v: number) { try { localStorage.setItem("tanloc-balance", String(v)); } catch { /* bỏ qua */ } }
+export function saveBalance(v: number) { try { localStorage.setItem("tanloc-balance", String(v)); } catch { /* bỏ qua */ } }
 export interface SettlementRow { id: string; name: string; attackDelta: number; rankDelta: number; fee: number; net: number; balanceAfter: number | null; }
 export interface ClientSettlement {
   level: number; rows: SettlementRow[]; totalFee: number; totalShortfall: number;
@@ -88,6 +88,7 @@ interface GameStore {
   drawFlying: { cardId: string; toId: string; key: number } | null; drawing: boolean;
   // Chat chỉ tồn tại trong ván: chỉ ở bộ nhớ, không lưu DB, không localStorage.
   chat: ChatMsg[];
+  chatBubbles: Record<string, { text: string; key: number }>;
   setPlayerName: (v: string) => void; setPlayerCount: (v: number) => void; setAllowTransfer: (v: boolean) => void; setTableLevel: (v: number) => void;
   startGame: () => void; backToLobby: () => void; goToRooms: () => void; goToCreate: (isPrivate: boolean) => void; goToFriends: () => void; goToRanks: () => void; goToLobby: () => void; addFriend: (name: string, avatar: string | null) => void; removeFriend: (name: string) => void; goToWaiting: (code: string, count: number, mode: "private" | "quick" | "join") => void; setWaitingReady: (v: boolean) => void; setRoomCode: (code: string | null) => void; setSelected: (v: string | null) => void;
   playCard: (cardId: string) => void; defendPair: (attackId: string, defenseCardId?: string) => void;
@@ -117,7 +118,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   screen: "login", roomCode: null, waitingCode: null, waitingCount: 4, waitingReady: false, waitingMode: "private", myId: HUMAN_ID, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, onlineWsStatus: "disconnected", onlineError: null, publicRooms: [], friends: loadFriends(), googleUser: null, firebaseConfig: null, authError: null, configLoading: true, createPrivate: false, playerName: loadName() || "Bạn", playerCount: 4, allowTransfer: true,
   balance: loadBalance(), tableLevel: 50_000, settlement: null, settledNonce: -1, gameNonce: 0, coinHistory: loadHistory(),
   game: null, selected: null, humanAddPassed: false, botBusy: false,
-  notice: null, noticeKey: 0, flying: null, drawFlying: null, drawing: false, chat: [],
+  notice: null, noticeKey: 0, flying: null, drawFlying: null, drawing: false, chat: [], chatBubbles: {},
   setPlayerName: (v) => { try { localStorage.setItem("tanloc-name", v); } catch { /* bỏ qua */ } set({ playerName: v }); },
   setPlayerCount: (v) => set({ playerCount: v }),
   setAllowTransfer: (v) => set({ allowTransfer: v }),
@@ -137,11 +138,13 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     if (bot) {
       const reply = BOT_REPLIES[Math.floor(Math.random() * BOT_REPLIES.length)];
       window.setTimeout(() => {
-        if (store.getState().screen === "game") set((s) => ({ chat: [...s.chat, { id: id + 1, from: bot.name, text: reply }] }));
+        if (store.getState().screen !== "game") return;
+        set((s) => ({ chat: [...s.chat, { id: id + 1, from: bot.name, text: reply }], chatBubbles: { ...s.chatBubbles, [bot.name]: { text: reply, key: Date.now() } } }));
+        window.setTimeout(() => { store.setState((s) => { const nb = { ...s.chatBubbles }; delete nb[bot.name]; return { chatBubbles: nb }; }); }, 6000);
       }, 900);
     }
   },
-  backToLobby: () => { const st = get(); if (st.onlineMode) { try { onlineSend({ type: "leave" }); } catch { /* bỏ qua */ } try { onlineWs?.close(); } catch { /* bỏ qua */ } set({ screen: st.googleUser ? "lobby" : "login", game: null, selected: null, notice: null, flying: null, chat: [], roomCode: null, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, followWindow: null, takeAnimCards: null }); return; } if (st.game && st.game.phase !== "FINISHED") forfeitBotGame(); set({ screen: st.googleUser ? "lobby" : "login", game: null, selected: null, notice: null, flying: null, chat: [], roomCode: null }); },
+  backToLobby: () => { const st = get(); if (st.onlineMode) { try { onlineSend({ type: "leave" }); } catch { /* bỏ qua */ } try { onlineWs?.close(); } catch { /* bỏ qua */ } set({ screen: st.googleUser ? "lobby" : "login", game: null, selected: null, notice: null, flying: null, chat: [], chatBubbles: {}, roomCode: null, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, followWindow: null, takeAnimCards: null }); return; } if (st.game && st.game.phase !== "FINISHED") forfeitBotGame(); set({ screen: st.googleUser ? "lobby" : "login", game: null, selected: null, notice: null, flying: null, chat: [], chatBubbles: {}, roomCode: null }); },
   goToRooms: () => set({ screen: "rooms" }),
   goToCreate: (isPrivate) => set({ screen: "create", createPrivate: isPrivate }),
   goToFriends: () => set({ screen: "friends" }),
@@ -179,7 +182,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
         game.defenderInitialHandCount = di.hand.length;
       }
     }
-    set({ screen: "game", game: cloneGame(game), selected: null, humanAddPassed: false, followWindow: null, takeAnimCards: null, myId: HUMAN_ID, onlineMode: false, gameNonce: get().gameNonce + 1, settledNonce: -1, settlement: null, chat: [{ id: Date.now(), from: "Hệ thống", text: "Chat trong ván này thôi, thoát ván là mất, không lưu lại." }], notice: `Ván mới: chất chủ ${game.trumpSuit}, ${game.players.find((p) => p.id === game.attackerId)?.name} tấn đầu.`, noticeKey: Date.now() });
+    set({ screen: "game", game: cloneGame(game), selected: null, humanAddPassed: false, followWindow: null, takeAnimCards: null, myId: HUMAN_ID, onlineMode: false, gameNonce: get().gameNonce + 1, settledNonce: -1, settlement: null, chatBubbles: {}, chat: [{ id: Date.now(), from: "Hệ thống", text: "Chat trong ván này thôi, thoát ván là mất, không lưu lại." }], notice: `Ván mới: chất chủ ${game.trumpSuit}, ${game.players.find((p) => p.id === game.attackerId)?.name} tấn đầu.`, noticeKey: Date.now() });
     playDealSound();
     void get().runBots();
   },
@@ -436,7 +439,8 @@ store.setState({
       } else if (m.type === "follow-end") {
         store.setState({ followWindow: null });
       } else if (m.type === "chat") {
-        store.setState((s) => ({ chat: [...s.chat, { id: Date.now(), from: String(m.from), text: String(m.text) }] }));
+        store.setState((s) => ({ chat: [...s.chat, { id: Date.now(), from: String(m.from), text: String(m.text) }], chatBubbles: { ...s.chatBubbles, [String(m.from)]: { text: String(m.text), key: Date.now() } } }));
+        window.setTimeout(() => { const f = String(m.from); store.setState((s) => { const nb = { ...s.chatBubbles }; delete nb[f]; return { chatBubbles: nb }; }); }, 6000);
       } else if (m.type === "command-result") {
         if (!m.accepted) store.getState().addLog(String(m.message || "Nước đi không hợp lệ"));
       } else if (m.type === "error") {
