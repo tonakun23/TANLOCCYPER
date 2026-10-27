@@ -749,10 +749,10 @@ export default function App() {
             <div className="tan-fan">
               <img src="/durak/cards/AS.png" alt="A bích" /><img src="/durak/cards/AD.png" alt="A rô" /><img src="/durak/cards/AC.png" alt="A chuồn" /><img src="/durak/cards/AH.png" alt="A cơ" />
             </div>
-            <div style={{ position: "absolute", bottom: "18%", left: "50%", transform: "translateX(-50%)", width: "min(20vw, 26vh)", height: "calc(min(20vw, 26vh) + 30px)", filter: "drop-shadow(0 8px 12px rgba(0,0,0,.45))" }}>
+            <div style={{ position: "absolute", bottom: "18%", left: "50%", transform: "translateX(-50%)", width: "min(11vw, 17vh)", minWidth: 54, height: "calc(min(11vw, 17vh) + 24px)", filter: "drop-shadow(0 8px 12px rgba(0,0,0,.45))" }}>
               <img src="/icons/chip-1m.svg" alt="Chip 1M" draggable={false} style={{ position: "absolute", bottom: 0, left: 0, width: "100%" }} />
-              <img src="/icons/chip-5m.svg" alt="Chip 5M" draggable={false} style={{ position: "absolute", bottom: 15, left: 0, width: "100%" }} />
-              <img src="/icons/chip-500k.svg" alt="Chip 500K" draggable={false} style={{ position: "absolute", bottom: 30, left: 0, width: "100%" }} />
+              <img src="/icons/chip-5m.svg" alt="Chip 5M" draggable={false} style={{ position: "absolute", bottom: 12, left: 0, width: "100%" }} />
+              <img src="/icons/chip-500k.svg" alt="Chip 500K" draggable={false} style={{ position: "absolute", bottom: 24, left: 0, width: "100%" }} />
             </div>
             <h2>CHƠI NGAY</h2>
           </button>
@@ -1040,7 +1040,7 @@ export default function App() {
               </div>
             ))}
           </div>
-          <form className="flex gap-2 p-4 border-t border-white/20" onSubmit={(e) => { e.preventDefault(); const msg = chatText.trim(); if (msg) { s.sendChat(msg); setBubble({ text: msg, key: Date.now() }); } setChatText(""); }}>
+          <form className="flex gap-2 p-4 border-t border-white/20" onSubmit={(e) => { e.preventDefault(); const msg = chatText.trim(); if (msg) { s.sendChat(msg); setBubble({ text: msg, key: Date.now() }); setChatOpen(false); } setChatText(""); }}>
             <input className="flex-1 min-w-0 bg-white/10 text-white placeholder:text-white/50 px-3 py-2 rounded-full text-sm outline-none" placeholder="Nhắn trong ván này…" value={chatText} onChange={(e) => setChatText(e.target.value)} />
             <button className="bg-yellow-400 text-black font-bold px-4 rounded-full text-sm" type="submit">Gửi</button>
           </form>
