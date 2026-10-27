@@ -19,7 +19,7 @@
 //   chưa có đồng hồ ép lượt server (client tự đếm giờ tấn/đỡ rồi gửi lệnh), người chơi
 //   mất kết nối giữa ván thì ghế vẫn giữ để reconnect bằng token phòng.
 import http from "node:http";
-import { randomUUID, createPublicKey, createVerify } from "node:crypto";
+import { randomUUID, createPublicKey, createVerify, createHash } from "node:crypto";
 import { WebSocketServer } from "ws";
 import { createGame, createCommandProcessor, publicView, canAttackCard, take, finishAttack, settleGame, isValidLevel, formatCoins, minBalance, START_BALANCE } from "../../packages/game-core/dist/index.js";
 
@@ -239,6 +239,23 @@ const server = http.createServer(async (req, res) => {
         return send(res, e.code === "FIREBASE_NOT_CONFIGURED" ? 503 : 401, { error: e.code || "INVALID_FIREBASE_TOKEN", message: e.message });
       }
     }
+    // ---- Vào chơi ngay bằng IP (TẠM THỜI thay Google login) ----
+    // Client IP qua Render proxy nằm ở X-Forwarded-For (mục đầu tiên); không có
+    // thì dùng remoteAddress. guestId = hash(IP) nên cùng IP là cùng danh tính
+    // (đóng vai googleId): số dư online bám theo guestId qua playerKey, giống
+    // user Google trước đây. Hạn chế đã biết: chung NAT/wifi/4G thì chung danh
+    // tính; đổi IP thì thành người mới; guestId không chống giả mạo — chỉ là
+    // cổng tạm, không phải tài khoản thật.
+    if (req.method === "POST" && url.pathname === "/auth/guest") {
+      const fwd = req.headers["x-forwarded-for"];
+      const ip = (typeof fwd === "string" && fwd.split(",")[0].trim()) || req.socket?.remoteAddress || "unknown";
+      const hash = createHash("sha256").update(ip).digest("hex");
+      const guestId = "ip-" + hash.slice(0, 12);
+      const user = { googleId: guestId, name: "Khách " + hash.slice(0, 4), email: null, avatar: null };
+      const sessionToken = randomUUID();
+      sessions.set(sessionToken, user);
+      return send(res, 200, { sessionToken, guestId, name: user.name });
+    }
     if (req.method === "POST" && url.pathname === "/auth/google") {
       const body = await readBody(req);
       if (!body.idToken) return send(res, 400, { error: "MISSING_ID_TOKEN" });
@@ -252,7 +269,7 @@ const server = http.createServer(async (req, res) => {
       }
     }
     if (req.method === "GET" && url.pathname === "/") {
-      return send(res, 200, { service: "tanloccyper-game-server", ruleSet: "VN_8_V1", endpoints: ["GET /health", "GET /auth/config", "POST /auth/google", "WS /ws (create/join/ready/start/command/chat)", "POST /auth/firebase", "POST /rooms", "GET /rooms (phong public dang cho)", "GET /rooms/:id?playerId=", "POST /rooms/:id/commands"] });
+      return send(res, 200, { service: "tanloccyper-game-server", ruleSet: "VN_8_V1", endpoints: ["GET /health", "GET /auth/config", "POST /auth/google", "WS /ws (create/join/ready/start/command/chat)", "POST /auth/firebase", "POST /auth/guest", "POST /rooms", "GET /rooms (phong public dang cho)", "GET /rooms/:id?playerId=", "POST /rooms/:id/commands"] });
     }
     if (req.method === "POST" && url.pathname === "/rooms") {
       const body = await readBody(req);

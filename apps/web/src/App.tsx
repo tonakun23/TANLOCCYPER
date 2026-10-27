@@ -26,14 +26,6 @@ function tierOf(bet: string | number): string {
   for (const t of ROOM_TIERS) if (v <= t.max) return t.id;
   return "master";
 }
-// Mở link trong Messenger/Facebook/Instagram/Zalo... là trình duyệt nhúng (WebView):
-// Google chặn đăng nhập từ WebView nên bấm google login ở đó là thất bại luôn.
-// Nhận diện: app Meta có FBAN/FBAV trong UA; WebView Android có ";wv".
-function isInAppBrowser(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent || "";
-  return /FBAN|FBAV/i.test(ua) || (/Android/i.test(ua) && /; wv/.test(ua));
-}
 // Khung ván co lại trên điện thoại: màn ván thiết kế ở 1152x648; chỉ khi điện
 // thoại xoay ngang (con trỏ thô + cao màn hình < 500px) mới co khung vừa màn
 // hình, desktop giữ nguyên không đổi. Tọa độ đo bằng getBoundingClientRect là
@@ -63,12 +55,11 @@ export default function App() {
   const [roomTier, setRoomTier] = useState("tap-su");
   const [starting, setStarting] = useState<null | { step: "count" | "deal" | "trump" | "move"; count: number; deal: number }>(null);
   const [firstEffect, setFirstEffect] = useState(false);
-  const [googleError, setGoogleError] = useState("");
-  const [popupBlocked, setPopupBlocked] = useState(false);
+  const [guestError, setGuestError] = useState("");
+  const [guestBusy, setGuestBusy] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
-  const [linkCopied, setLinkCopied] = useState(false);
   const [stage, setStage] = useState(gameStage);
   useEffect(() => {
     const update = () => setStage(gameStage());
@@ -77,7 +68,6 @@ export default function App() {
     window.addEventListener("orientationchange", update);
     return () => { window.removeEventListener("resize", update); window.removeEventListener("orientationchange", update); };
   }, []);
-  useEffect(() => { void s.loadFirebaseConfig(); }, []);
   // Màn CHƠI NGAY: tải bảng phòng thật, làm mới mỗi 5 giây khi đang ở màn này.
   useEffect(() => {
     if (s.screen !== "rooms") return;
@@ -657,8 +647,6 @@ export default function App() {
     );
   }
   if (s.screen === "login") {
-    const inApp = isInAppBrowser();
-    const isAndroid = /Android/i.test(navigator.userAgent || "");
     return (
       <div className="tan-home h-screen w-screen overflow-hidden text-white relative">
         {/* Adam (trai) va Chua cung cac thien than (phai) giay tay ve la bai o giua. */}
@@ -668,21 +656,7 @@ export default function App() {
           <div style={{ textAlign: "center", textShadow: "0 2px 12px rgba(0,0,0,.6)" }}>
             <div style={{ fontSize: 46, fontWeight: 900, letterSpacing: 2 }}>TẤN ONLINE</div>
           </div>
-          {inApp && (
-            <div style={{ maxWidth: 380, textAlign: "center", background: "rgba(0,0,0,.55)", border: "1.5px solid rgba(250,204,21,.7)", borderRadius: 12, padding: 12 }}>
-              <p style={{ color: "#fde68a", fontSize: 14, fontWeight: 800, margin: 0 }}>Bạn đang mở game trong Messenger/Facebook</p>
-              <p style={{ color: "#fff", fontSize: 13, margin: "6px 0 0" }}>Google chặn đăng nhập trong khung chat nên bấm đăng nhập ở đây sẽ không được. Hãy mở game bằng trình duyệt Chrome/Safari rồi đăng nhập bình thường.</p>
-              <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10, flexWrap: "wrap" }}>
-                {isAndroid && (
-                  <button className="bg-yellow-400 text-black font-bold px-4 py-2 rounded-full text-sm" onClick={() => { window.location.href = `intent://${window.location.host}${window.location.pathname}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`; }}>Mở bằng trình duyệt</button>
-                )}
-                <button className="bg-white text-black font-bold px-4 py-2 rounded-full text-sm" onClick={async () => { try { await navigator.clipboard?.writeText(window.location.href); setLinkCopied(true); } catch { /* người dùng tự giữ link bên dưới */ } }}>{linkCopied ? "Đã sao chép ✓" : "Sao chép link game"}</button>
-              </div>
-              <p style={{ color: "rgba(255,255,255,.7)", fontSize: 12, margin: "8px 0 0", wordBreak: "break-all" }}>{window.location.href}</p>
-              {!isAndroid && <p style={{ color: "rgba(255,255,255,.7)", fontSize: 12, margin: "6px 0 0" }}>Trên iPhone: bấm nút Chia sẻ trong khung này → "Mở trong Safari".</p>}
-            </div>
-          )}
-          {/* La At Co to, lo lung giua hai ban tay; nut dang nhap la mot phan cua la bai. */}
+          {/* La At Co to, lo lung giua hai ban tay; nut choi ngay la mot phan cua la bai. */}
           <div className="login-card-float" style={{ background: "#fff", color: "#111", borderRadius: 18, height: "min(46vh, 360px)", aspectRatio: "5 / 7", maxWidth: "84vw", display: "flex", flexDirection: "column", padding: 16, boxSizing: "border-box" }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1 }}>
               <span style={{ fontSize: 30, fontWeight: 900, color: "#dc2626" }}>A</span>
@@ -692,13 +666,7 @@ export default function App() {
               <svg viewBox="0 0 24 24" style={{ width: "62%", filter: "drop-shadow(0 10px 16px rgba(220,38,38,.35))" }}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="#dc2626" /></svg>
             </div>
             <div>
-              {s.configLoading ? (
-                <p style={{ color: "#374151", fontSize: 15, textAlign: "center", margin: 0 }}>Đang tải đăng nhập…</p>
-              ) : s.firebaseConfig ? (
-                <button style={{ width: "100%", background: "#dc2626", color: "#fff", fontWeight: 800, fontSize: 16, padding: "12px 16px", borderRadius: 999, border: "none", boxShadow: "0 8px 20px rgba(220,38,38,.35)", cursor: "pointer" }} onClick={async () => { try { await s.firebaseLogin(); setGoogleError(""); setPopupBlocked(false); } catch (e) { const m = (e as Error).message; if (m.includes("popup-blocked")) { setPopupBlocked(true); setGoogleError(""); } else setGoogleError(m); } }}>google login</button>
-              ) : (
-                <p style={{ color: "#6b7280", fontSize: 13, textAlign: "center", margin: 0 }}>Đăng nhập Google chưa cấu hình (cần Firebase config trên Render).</p>
-              )}
+              <button style={{ width: "100%", background: "#dc2626", color: "#fff", fontWeight: 800, fontSize: 18, padding: "12px 16px", borderRadius: 999, border: "none", boxShadow: "0 8px 20px rgba(220,38,38,.35)", cursor: guestBusy ? "wait" : "pointer", opacity: guestBusy ? 0.7 : 1 }} disabled={guestBusy} onClick={async () => { setGuestBusy(true); try { await s.guestLogin(); setGuestError(""); } catch (e) { setGuestError((e as Error).message); } finally { setGuestBusy(false); } }}>{guestBusy ? "Đang vào…" : "CHƠI NGAY"}</button>
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
                 <div style={{ transform: "rotate(180deg)", display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1 }}>
                   <span style={{ fontSize: 30, fontWeight: 900, color: "#dc2626" }}>A</span>
@@ -707,17 +675,8 @@ export default function App() {
               </div>
             </div>
           </div>
-          {googleError && <p style={{ color: "#f87171", fontSize: 13, textAlign: "center", margin: 0 }}>{googleError}</p>}
+          {guestError && <p style={{ color: "#f87171", fontSize: 13, textAlign: "center", margin: 0 }}>{guestError}</p>}
           {s.authError && <p style={{ color: "#f87171", fontSize: 13, textAlign: "center", margin: 0 }}>{s.authError}</p>}
-          {popupBlocked && (
-            <div style={{ maxWidth: 380, textAlign: "center", background: "rgba(0,0,0,.5)", borderRadius: 12, padding: 12 }}>
-              <p style={{ color: "#fdba74", fontSize: 13, margin: 0 }}>Trình duyệt đã chặn cửa sổ đăng nhập. Để cho phép: bấm icon ổ khóa ở đầu thanh địa chỉ (bên trái địa chỉ web) → Site settings → Pop-ups and redirects → chọn Allow, rồi bấm Thử lại. Hoặc bấm nút chuyển trang bên dưới để khỏi cần popup.</p>
-              <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10, flexWrap: "wrap" }}>
-                <button className="bg-white text-black font-bold px-4 py-2 rounded-full text-sm" onClick={async () => { try { await s.firebaseLogin(); setPopupBlocked(false); } catch (e) { const m = (e as Error).message; if (!m.includes("popup-blocked")) setGoogleError(m); } }}>Thử lại bằng popup</button>
-                <button className="bg-transparent text-white font-bold px-4 py-2 rounded-full text-sm" style={{ border: "1px solid rgba(255,255,255,.6)" }} onClick={async () => { try { await s.firebaseRedirectLogin(); } catch (e) { setGoogleError((e as Error).message); } }}>Đăng nhập bằng chuyển trang</button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     );

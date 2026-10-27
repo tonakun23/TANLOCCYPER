@@ -17,6 +17,7 @@ function onlineSend(obj: Record<string, unknown>) { if (onlineWs && onlineWs.rea
 function onlinePlayerToken(code: string) { try { return localStorage.getItem(`tanloc-online-${code}`) || null; } catch { return null; } }
 function onlineSaveToken(code: string, token: string) { try { localStorage.setItem(`tanloc-online-${code}`, token); } catch { /* bỏ qua */ } }
 function onlineSession() { try { return localStorage.getItem("tanloc-session") || null; } catch { return null; } }
+function loadName() { try { return localStorage.getItem("tanloc-name") || ""; } catch { return ""; } }
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 function cloneGame(g: GameState): GameState {
@@ -95,7 +96,7 @@ interface GameStore {
   runBots: () => Promise<void>; addLog: (msg: string) => void;
   sendChat: (text: string) => void; clearNotice: () => void;
   autoLowestAttack: () => void; passAttack: () => void; followWindow: { mode: "take" | "add"; takerId?: string; key: number } | null; resolveTakeFollow: () => void; passFollow: () => void; takeAnimCards: string[] | null; clearTakeAnim: () => void;
-  onlineConnect: (m: Record<string, unknown>) => void; onlineCreateRoom: (level: number, count: number, isPublic?: boolean) => void; onlineJoinRoom: (code: string) => void; onlineReady: (v: boolean) => void; onlineStart: () => void; onlineLeave: () => void; onlineRematch: (ready: boolean) => void; loadPublicRooms: () => Promise<void>; setGoogleUser: (u: { name: string; email: string; avatar: string | null } | null) => void; loadFirebaseConfig: () => Promise<void>; firebaseLogin: () => Promise<void>; firebaseRedirectLogin: () => Promise<void>; googleLogout: () => Promise<void>;
+  onlineConnect: (m: Record<string, unknown>) => void; onlineCreateRoom: (level: number, count: number, isPublic?: boolean) => void; onlineJoinRoom: (code: string) => void; onlineReady: (v: boolean) => void; onlineStart: () => void; onlineLeave: () => void; onlineRematch: (ready: boolean) => void; loadPublicRooms: () => Promise<void>; setGoogleUser: (u: { name: string; email: string; avatar: string | null } | null) => void; loadFirebaseConfig: () => Promise<void>; firebaseLogin: () => Promise<void>; firebaseRedirectLogin: () => Promise<void>; guestLogin: () => Promise<void>; googleLogout: () => Promise<void>;
 }
 
 // Lá mới xuất hiện trên bàn sau một nước đi (so với trước nước đi).
@@ -113,11 +114,11 @@ function tableIds(game: GameState): Set<string> {
 }
 
 export const useGameStore = create<GameStore>()((set, get) => ({
-  screen: "login", roomCode: null, waitingCode: null, waitingCount: 4, waitingReady: false, waitingMode: "private", myId: HUMAN_ID, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, onlineWsStatus: "disconnected", onlineError: null, publicRooms: [], friends: loadFriends(), googleUser: null, firebaseConfig: null, authError: null, configLoading: true, createPrivate: false, playerName: "Bạn", playerCount: 4, allowTransfer: true,
+  screen: "login", roomCode: null, waitingCode: null, waitingCount: 4, waitingReady: false, waitingMode: "private", myId: HUMAN_ID, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, onlineWsStatus: "disconnected", onlineError: null, publicRooms: [], friends: loadFriends(), googleUser: null, firebaseConfig: null, authError: null, configLoading: true, createPrivate: false, playerName: loadName() || "Bạn", playerCount: 4, allowTransfer: true,
   balance: loadBalance(), tableLevel: 50_000, settlement: null, settledNonce: -1, gameNonce: 0, coinHistory: loadHistory(),
   game: null, selected: null, humanAddPassed: false, botBusy: false,
   notice: null, noticeKey: 0, flying: null, drawFlying: null, drawing: false, chat: [],
-  setPlayerName: (v) => set({ playerName: v }),
+  setPlayerName: (v) => { try { localStorage.setItem("tanloc-name", v); } catch { /* bỏ qua */ } set({ playerName: v }); },
   setPlayerCount: (v) => set({ playerCount: v }),
   setAllowTransfer: (v) => set({ allowTransfer: v }),
   setTableLevel: (v) => { if (TABLE_LEVELS.includes(v)) set({ tableLevel: v }); },
@@ -194,7 +195,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   sortHand: () => {},
   autoLowestAttack: () => {},
   passAttack: () => {},
-  followWindow: null, resolveTakeFollow: () => {}, passFollow: () => {}, takeAnimCards: null, clearTakeAnim: () => {}, onlineConnect: () => {}, onlineCreateRoom: () => {}, onlineJoinRoom: () => {}, onlineReady: () => {}, onlineStart: () => {}, onlineLeave: () => {}, onlineRematch: () => {}, loadPublicRooms: async () => {}, setGoogleUser: () => {}, loadFirebaseConfig: async () => {}, firebaseLogin: async () => {}, firebaseRedirectLogin: async () => {}, googleLogout: async () => {},
+  followWindow: null, resolveTakeFollow: () => {}, passFollow: () => {}, takeAnimCards: null, clearTakeAnim: () => {}, onlineConnect: () => {}, onlineCreateRoom: () => {}, onlineJoinRoom: () => {}, onlineReady: () => {}, onlineStart: () => {}, onlineLeave: () => {}, onlineRematch: () => {}, loadPublicRooms: async () => {}, setGoogleUser: () => {}, loadFirebaseConfig: async () => {}, firebaseLogin: async () => {}, firebaseRedirectLogin: async () => {}, guestLogin: async () => {}, googleLogout: async () => {},
 }));
 
 // Gán các action sau khi store tạo xong để tránh vòng tham chiếu trong create().
@@ -544,6 +545,16 @@ store.setState({
     if (!cfg || !cfg.apiKey || !cfg.projectId || !cfg.appId) throw new Error("Firebase chưa cấu hình trên Render");
     const { signInGoogleRedirect } = await import("./game/firebase-auth");
     await signInGoogleRedirect(cfg as unknown as Parameters<typeof signInGoogleRedirect>[0]);
+  },
+  // Vào chơi ngay bằng IP (TẠM THỜI thay Google login): server lấy IP từ request,
+  // cấp session khách gắn guestId = hash(IP); client lưu sessionToken chung khóa
+  // tanloc-session nên WS create/join tự nhận danh tính khách qua sessionToken.
+  guestLogin: async () => {
+    const r = await fetch(`${API_BASE}/auth/guest`, { method: "POST" });
+    const jj = await r.json();
+    if (!r.ok) throw new Error(jj.message || jj.error || "Không vào được, thử lại sau.");
+    try { localStorage.setItem("tanloc-session", jj.sessionToken); } catch { /* bỏ qua */ }
+    store.setState((prev) => ({ googleUser: null, playerName: prev.playerName && prev.playerName !== "Bạn" ? prev.playerName : jj.name, screen: prev.screen === "login" ? "lobby" : prev.screen, authError: null }));
   },
   googleLogout: async () => {
     try { localStorage.removeItem("tanloc-session"); } catch { /* bỏ qua */ }
