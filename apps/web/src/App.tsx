@@ -34,6 +34,17 @@ function isInAppBrowser(): boolean {
   const ua = navigator.userAgent || "";
   return /FBAN|FBAV/i.test(ua) || (/Android/i.test(ua) && /; wv/.test(ua));
 }
+// Khung ván co lại trên điện thoại: màn ván thiết kế ở 1152x648; chỉ khi điện
+// thoại xoay ngang (con trỏ thô + cao màn hình < 500px) mới co khung vừa màn
+// hình, desktop giữ nguyên không đổi. Tọa độ đo bằng getBoundingClientRect là
+// px màn hình, phải đổi sang px khung trước khi đặt overlay nằm trong khung.
+const STAGE_W = 1152, STAGE_H = 648;
+function gameStage(): { phone: boolean; scale: number; left: number; top: number } {
+  if (typeof window === "undefined") return { phone: false, scale: 1, left: 0, top: 0 };
+  const phone = window.matchMedia("(pointer: coarse)").matches && window.innerHeight < 500;
+  const scale = phone ? Math.min(1, window.innerWidth / STAGE_W, window.innerHeight / STAGE_H) : 1;
+  return { phone, scale, left: (window.innerWidth - STAGE_W * scale) / 2, top: (window.innerHeight - STAGE_H * scale) / 2 };
+}
 
 export default function App() {
   const s = useGameStore();
@@ -58,6 +69,14 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [linkCopied, setLinkCopied] = useState(false);
+  const [stage, setStage] = useState(gameStage);
+  useEffect(() => {
+    const update = () => setStage(gameStage());
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    return () => { window.removeEventListener("resize", update); window.removeEventListener("orientationchange", update); };
+  }, []);
   useEffect(() => { void s.loadFirebaseConfig(); }, []);
   // Màn CHƠI NGAY: tải bảng phòng thật, làm mới mỗi 5 giây khi đang ở màn này.
   useEffect(() => {
@@ -155,7 +174,8 @@ export default function App() {
       const rx = Math.min(620, w * 0.49), ry = Math.max(60, h / 2 - 100);
       tx = r.left + (cx - rx + 16); ty = r.top + (cy - ry + 16);
     }
-    setStockTarget({ dx: tx - window.innerWidth / 2 + 32, dy: ty - window.innerHeight / 2 + 44 });
+    const st = gameStage();
+    setStockTarget({ dx: (tx - window.innerWidth / 2) / st.scale + 32, dy: (ty - window.innerHeight / 2) / st.scale + 44 });
     const id = setTimeout(() => setStockMoved(true), 60);
     return () => clearTimeout(id);
   }, [starting]);
@@ -227,7 +247,8 @@ export default function App() {
     const totalW = game.table.length * 90;
     const x = cx + 50 - totalW / 2 + idx * 90 + (kind === "defend" ? 20 : 0);
     const y = kind === "defend" ? cy - 12 : cy - 30;
-    const fx = { key: s.flying.key, kind, x: r.left + x + 32, y: r.top + y + 44 };
+    const st = gameStage();
+    const fx = { key: s.flying.key, kind, x: (r.left + x + 32 - st.left) / st.scale, y: (r.top + y + 44 - st.top) / st.scale };
     setPlayFx(fx);
     if (fx.kind === "attack") playAttackSound(); else playDefendSound();
     const id = setTimeout(() => setPlayFx((v) => (v?.key === fx.key ? null : v)), 1200);
@@ -805,7 +826,9 @@ export default function App() {
   else if (!iAmDefender && game.table.length > 0 && me?.hand.some((c) => canAttackCard(game, myId, c))) hint = "Bạn có thể thêm bài cùng hạng.";
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[#1b3a1b] text-white flex flex-col relative">
+    <div className="h-screen w-screen overflow-hidden flex items-center justify-center bg-black">
+      <div style={stage.phone ? { width: STAGE_W, height: STAGE_H, transform: `scale(${stage.scale})`, transformOrigin: "center", flexShrink: 0 } : { width: "100%", height: "100%" }}>
+        <div className="h-full w-full overflow-hidden bg-[#1b3a1b] text-white flex flex-col relative">
       <div className="flex gap-3 bg-black/50 px-3 py-2 font-semibold items-center justify-between shrink-0">
         <span className="flex items-center gap-3">
           <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 flex items-center justify-center" title="Rời khỏi ván đấu" onClick={() => setLeaveOpen(true)}><X size={18} /></button>
@@ -1164,6 +1187,8 @@ export default function App() {
           </div>
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }
