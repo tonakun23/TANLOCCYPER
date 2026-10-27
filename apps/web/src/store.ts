@@ -14,9 +14,20 @@ let onlineActionSeq = 0;
 // voi loi auth/popup-blocked. Dung ham tai san thi popup mo ngay trong cung cu chi bam.
 let popupLoginFn: ((cfg: unknown) => Promise<{ name: string; email: string; avatar: string | null; idToken: string }>) | null = null;
 function onlineSend(obj: Record<string, unknown>) { if (onlineWs && onlineWs.readyState === 1) onlineWs.send(JSON.stringify(obj)); }
-function onlinePlayerToken(code: string) { try { return localStorage.getItem(`tanloc-online-${code}`) || null; } catch { return null; } }
+export function onlinePlayerToken(code: string) { try { return localStorage.getItem(`tanloc-online-${code}`) || null; } catch { return null; } }
 function onlineSaveToken(code: string, token: string) { try { localStorage.setItem(`tanloc-online-${code}`, token); } catch { /* bỏ qua */ } }
-function onlineSession() { try { return localStorage.getItem("tanloc-session") || null; } catch { return null; } }
+export function onlineSession() { try { return localStorage.getItem("tanloc-session") || null; } catch { return null; } }
+// Mã phòng của ván online đang chơi — F5 vẫn vào lại đúng ván; chủ động thoát
+// (backToLobby) mới xóa. Lưu riêng khóa tanloc-resume để không lẫn token từng phòng.
+const RESUME_KEY = "tanloc-resume";
+function saveResumeCode(code: string) { try { localStorage.setItem(RESUME_KEY, code); } catch { /* bỏ qua */ } }
+export function loadResumeCode(): string | null { try { return localStorage.getItem(RESUME_KEY) || null; } catch { return null; } }
+function clearResumeCode() { try { localStorage.removeItem(RESUME_KEY); } catch { /* bỏ qua */ } }
+// Tự nối lại khi rớt mạng: backoff 1s -> 2s -> 5s -> 10s (capped). Chủ động thoát
+// đặt onlineManualClose = true nên không nối lại; socket cũ bị thay cũng bị chặn.
+let onlineReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let onlineReconnectDelay = 1000;
+let onlineManualClose = false;
 function loadName() { try { return localStorage.getItem("tanloc-name") || ""; } catch { return ""; } }
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -71,7 +82,7 @@ export interface ChatMsg { id: number; from: string; text: string; }
 const BOT_REPLIES = ["Chơi hay đấy!", "Lá này khó đỡ quá!", "Tới lượt bạn rồi kìa.", "Haha, ván này căng!", "Để xem bạn đỡ sao đây.", "Bài mình cũng không đẹp lắm đâu."];
 
 interface GameStore {
-  screen: "login" | "lobby" | "rooms" | "create" | "waiting" | "game" | "friends" | "ranks"; waitingCode: string | null; waitingCount: number; waitingReady: boolean; waitingMode: "private" | "quick" | "join"; myId: string; onlineMode: boolean; onlineRoom: { code: string; bet: string; level: number; maxPlayers: number; hostId: string; state: string; rematchReady: string[]; players: { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean; balance: number }[] } | null; onlineMyLobbyId: string | null; onlineWsStatus: string; onlineError: string | null; publicRooms: { code: string; bet: string; maxPlayers: number; playerCount: number; hostName: string }[]; friends: FriendEntry[]; googleUser: { name: string; email: string; avatar: string | null } | null; firebaseConfig: Record<string, string> | null; authError: string | null; configLoading: boolean;
+  screen: "login" | "lobby" | "rooms" | "create" | "waiting" | "game" | "friends" | "ranks"; waitingCode: string | null; waitingCount: number; waitingReady: boolean; waitingMode: "private" | "quick" | "join"; myId: string; onlineMode: boolean; onlineRoom: { code: string; bet: string; level: number; maxPlayers: number; hostId: string; state: string; rematchReady: string[]; players: { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean; balance: number }[] } | null; onlineMyLobbyId: string | null; onlineWsStatus: string; onlineError: string | null; resuming: boolean; resumeError: string | null; publicRooms: { code: string; bet: string; maxPlayers: number; playerCount: number; hostName: string }[]; friends: FriendEntry[]; googleUser: { name: string; email: string; avatar: string | null } | null; firebaseConfig: Record<string, string> | null; authError: string | null; configLoading: boolean;
   // Xu: số dư (ván bot lưu localStorage, ván online server quyết toán), mức bàn
   // đang chọn, kết quả quyết toán của ván vừa kết thúc, lịch sử quyết toán.
   balance: number; tableLevel: number; settlement: ClientSettlement | null; settledNonce: number; gameNonce: number; coinHistory: CoinHistoryEntry[];
@@ -115,7 +126,7 @@ function tableIds(game: GameState): Set<string> {
 }
 
 export const useGameStore = create<GameStore>()((set, get) => ({
-  screen: "login", roomCode: null, waitingCode: null, waitingCount: 4, waitingReady: false, waitingMode: "private", myId: HUMAN_ID, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, onlineWsStatus: "disconnected", onlineError: null, publicRooms: [], friends: loadFriends(), googleUser: null, firebaseConfig: null, authError: null, configLoading: true, createPrivate: false, playerName: loadName() || "Bạn", playerCount: 4, allowTransfer: true,
+  screen: "login", roomCode: null, waitingCode: null, waitingCount: 4, waitingReady: false, waitingMode: "private", myId: HUMAN_ID, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, onlineWsStatus: "disconnected", onlineError: null, resuming: false, resumeError: null, publicRooms: [], friends: loadFriends(), googleUser: null, firebaseConfig: null, authError: null, configLoading: true, createPrivate: false, playerName: loadName() || "Bạn", playerCount: 4, allowTransfer: true,
   balance: loadBalance(), tableLevel: 50_000, settlement: null, settledNonce: -1, gameNonce: 0, coinHistory: loadHistory(),
   game: null, selected: null, humanAddPassed: false, botBusy: false,
   notice: null, noticeKey: 0, flying: null, drawFlying: null, drawing: false, chat: [], chatBubbles: {},
@@ -144,7 +155,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
       }, 900);
     }
   },
-  backToLobby: () => { const st = get(); if (st.onlineMode) { try { onlineSend({ type: "leave" }); } catch { /* bỏ qua */ } try { onlineWs?.close(); } catch { /* bỏ qua */ } set({ screen: st.googleUser ? "lobby" : "login", game: null, selected: null, notice: null, flying: null, chat: [], chatBubbles: {}, roomCode: null, onlineMode: false, onlineRoom: null, onlineMyLobbyId: null, followWindow: null, takeAnimCards: null }); return; } if (st.game && st.game.phase !== "FINISHED") forfeitBotGame(); set({ screen: st.googleUser ? "lobby" : "login", game: null, selected: null, notice: null, flying: null, chat: [], chatBubbles: {}, roomCode: null }); },
+  backToLobby: () => { const st = get(); if (st.onlineMode) { try { onlineSend({ type: "leave" }); } catch { /* bỏ qua */ } onlineManualClose = true; if (onlineReconnectTimer) { clearTimeout(onlineReconnectTimer); onlineReconnectTimer = null; } clearResumeCode(); try { onlineWs?.close(); } catch { /* bỏ qua */ } set({ screen: st.googleUser ? "lobby" : "login", game: null, selected: null, notice: null, flying: null, chat: [], chatBubbles: {}, roomCode: null, onlineMode: false, resuming: false, onlineRoom: null, onlineMyLobbyId: null, followWindow: null, takeAnimCards: null }); return; } if (st.game && st.game.phase !== "FINISHED") forfeitBotGame(); set({ screen: st.googleUser ? "lobby" : "login", game: null, selected: null, notice: null, flying: null, chat: [], chatBubbles: {}, roomCode: null }); },
   goToRooms: () => set({ screen: "rooms" }),
   goToCreate: (isPrivate) => set({ screen: "create", createPrivate: isPrivate }),
   goToFriends: () => set({ screen: "friends" }),
@@ -387,21 +398,34 @@ store.setState({
   },
   // ---- Chơi online qua WebSocket ----
   onlineConnect: (firstMsg: Record<string, unknown>) => {
+    if (onlineReconnectTimer) { clearTimeout(onlineReconnectTimer); onlineReconnectTimer = null; }
+    onlineManualClose = false;
     try { onlineWs?.close(); } catch { /* bỏ qua */ }
     store.setState({ onlineWsStatus: "connecting", onlineError: null });
     const ws = new WebSocket(WS_URL); onlineWs = ws;
-    ws.onopen = () => { store.setState({ onlineWsStatus: "connected" }); ws.send(JSON.stringify(firstMsg)); };
-    ws.onclose = () => { const st = store.getState(); if (st.onlineMode || st.screen === "waiting") store.setState({ onlineWsStatus: "disconnected" }); };
+    ws.onopen = () => { onlineReconnectDelay = 1000; store.setState({ onlineWsStatus: "connected" }); ws.send(JSON.stringify(firstMsg)); };
+    ws.onclose = () => {
+      if (onlineWs !== ws) return; // socket cũ bị thay bởi lần nối mới, không nối lại
+      if (onlineManualClose) return; // chủ động thoát: không nối lại
+      const st = store.getState();
+      if (st.onlineMode || st.screen === "waiting") store.setState({ onlineWsStatus: "disconnected" }); else return;
+      const delay = onlineReconnectDelay; onlineReconnectDelay = Math.min(10000, onlineReconnectDelay * 2);
+      onlineReconnectTimer = setTimeout(() => {
+        const s2 = store.getState();
+        const code = loadResumeCode() || s2.waitingCode || s2.roomCode; if (!code) return;
+        (store.getState() as unknown as { onlineConnect: (m: Record<string, unknown>) => void }).onlineConnect({ type: "join", code, name: s2.playerName.trim() || "Bạn", avatar: s2.googleUser?.avatar || null, token: onlinePlayerToken(code), sessionToken: onlineSession() });
+      }, delay);
+    };
     ws.onerror = () => { store.setState({ onlineWsStatus: "error", onlineError: "Không kết nối được máy chủ (Render có thể đang ngủ, thử lại sau vài giây)." }); };
     ws.onmessage = (ev) => {
       let m: Record<string, unknown>;
       try { m = JSON.parse(String(ev.data)); } catch { return; }
       const st = store.getState();
       if (m.type === "joined") {
-        onlineSaveToken(String(m.code), String(m.token));
-        store.setState({ onlineMyLobbyId: String(m.playerId), waitingCode: String(m.code), roomCode: String(m.code), screen: "waiting", onlineMode: true, onlineError: null });
+        onlineSaveToken(String(m.code), String(m.token)); saveResumeCode(String(m.code));
+        store.setState({ onlineMyLobbyId: String(m.playerId), waitingCode: String(m.code), roomCode: String(m.code), screen: "waiting", onlineMode: true, onlineError: null, resuming: false });
       } else if (m.type === "room") {
-        store.setState({ onlineRoom: { code: String(m.code), bet: String(m.bet), level: Number(m.level || 0), maxPlayers: Number(m.maxPlayers), hostId: String(m.hostId), state: String(m.state), rematchReady: (m.rematchReady as string[]) || [], players: (m.players as { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean; balance: number }[]) }, waitingCode: String(m.code) });
+        store.setState({ resuming: false, onlineRoom: { code: String(m.code), bet: String(m.bet), level: Number(m.level || 0), maxPlayers: Number(m.maxPlayers), hostId: String(m.hostId), state: String(m.state), rematchReady: (m.rematchReady as string[]) || [], players: (m.players as { id: string; name: string; avatar: string | null; ready: boolean; online: boolean; isHost: boolean; balance: number }[]) }, waitingCode: String(m.code) });
         if (m.state === "playing" && st.screen !== "game") store.setState({ screen: "game" });
       } else if (m.type === "game") {
         const view = m.view as Record<string, unknown>;
@@ -410,7 +434,7 @@ store.setState({
         const prev = st.game;
         // Lá mới xuất hiện + người đánh nó (tấn -> attackerId, đỡ -> defenderId) để bay đúng hướng ghế.
         const played = prev ? (() => { const before = new Set<string>(); for (const pr of prev.table) { before.add(pr.attack.id); if (pr.defense) before.add(pr.defense.id); } for (const pr of g.table) { if (!before.has(pr.attack.id)) return { cardId: pr.attack.id, by: g.attackerId }; if (pr.defense && !before.has(pr.defense.id)) return { cardId: pr.defense.id, by: g.defenderId }; } return null; })() : null;
-        store.setState({ game: cloneGame(g), myId: myEngineId, onlineMode: true, screen: "game", selected: null, settlement: Number(view.version) === 1 ? null : st.settlement, flying: played ? { cardId: played.cardId, by: played.by, key: Date.now() } : st.flying });
+        store.setState({ resuming: false, game: cloneGame(g), myId: myEngineId, onlineMode: true, screen: "game", selected: null, settlement: Number(view.version) === 1 ? null : st.settlement, flying: played ? { cardId: played.cardId, by: played.by, key: Date.now() } : st.flying });
         if (played) playCardSound();
       } else if (m.type === "settlement") {
         // Server đã quyết toán (server-authoritative): hiển thị + cập nhật số dư của mình + ghi lịch sử.
@@ -444,7 +468,14 @@ store.setState({
       } else if (m.type === "command-result") {
         if (!m.accepted) store.getState().addLog(String(m.message || "Nước đi không hợp lệ"));
       } else if (m.type === "error") {
-        store.setState({ onlineError: String(m.message || m.code) });
+        const code = String(m.code || "");
+        if (st.resuming && (code === "ROOM_NOT_FOUND" || code === "GAME_ALREADY_STARTED" || code === "ROOM_FULL")) {
+          // Phòng cũ đã mất (server khởi động lại / hết 60s dọn dẹp): không nối lại
+          // nữa, về màn vào chơi và báo rõ để vào ván mới. Lỗi khác (vd thiếu xu
+          // khi đủ 2 người) vẫn giữ hành vi cũ: hiện onlineError ở phòng chờ.
+          clearResumeCode();
+          store.setState({ resuming: false, screen: "login", onlineMode: false, onlineRoom: null, resumeError: "Ván cũ không còn nữa (phòng đã đóng hoặc server khởi động lại). Mời vào ván mới." });
+        } else store.setState({ onlineError: String(m.message || m.code) });
       }
     };
   },
@@ -558,7 +589,7 @@ store.setState({
     const jj = await r.json();
     if (!r.ok) throw new Error(jj.message || jj.error || "Không vào được, thử lại sau.");
     try { localStorage.setItem("tanloc-session", jj.sessionToken); } catch { /* bỏ qua */ }
-    store.setState((prev) => ({ googleUser: null, playerName: prev.playerName && prev.playerName !== "Bạn" ? prev.playerName : jj.name, screen: prev.screen === "login" ? "lobby" : prev.screen, authError: null }));
+    store.setState((prev) => ({ googleUser: null, resumeError: null, playerName: prev.playerName && prev.playerName !== "Bạn" ? prev.playerName : jj.name, screen: prev.screen === "login" ? "lobby" : prev.screen, authError: null }));
   },
   googleLogout: async () => {
     try { localStorage.removeItem("tanloc-session"); } catch { /* bỏ qua */ }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useGameStore, saveBalance } from "./store";
+import { useGameStore, saveBalance, loadResumeCode, onlinePlayerToken, onlineSession } from "./store";
 import { CardView } from "./components/CardView";
 import { TableCanvas } from "./components/TableCanvas";
 import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, canAttackCard, cardLabel } from "../../../packages/game-core/src/engine";
@@ -159,6 +159,16 @@ export default function App() {
     const id = setTimeout(() => setBubble(null), 6000);
     return () => clearTimeout(id);
   }, [bubble]);
+  // F5 giữa ván online: tự vào lại đúng phòng/ván bằng mã + token đã lưu.
+  // Chủ động thoát (backToLobby) đã xóa mã lưu nên không tự vào lại.
+  const resumeTriedRef = useRef(false);
+  useEffect(() => {
+    if (resumeTriedRef.current) return; resumeTriedRef.current = true;
+    const code = loadResumeCode(); if (!code) return;
+    const st = useGameStore.getState();
+    useGameStore.setState({ resuming: true, resumeError: null, onlineMode: true, screen: "waiting", waitingMode: "join", waitingCode: code });
+    st.onlineConnect({ type: "join", code, name: st.playerName.trim() || "Bạn", avatar: st.googleUser?.avatar || null, token: onlinePlayerToken(code), sessionToken: onlineSession() });
+  }, []);
   // Panel chat mở: có tin mới thì tự cuộn xuống cuối để đọc được ngay.
   useEffect(() => {
     if (chatOpen && chatListRef.current) chatListRef.current.scrollTop = chatListRef.current.scrollHeight;
@@ -755,6 +765,7 @@ export default function App() {
             </div>
           </div>
           {guestError && <p style={{ color: "#f87171", fontSize: 13, textAlign: "center", margin: 0 }}>{guestError}</p>}
+          {s.resumeError && <p style={{ color: "#facc15", fontSize: 13, textAlign: "center", margin: 0 }}>{s.resumeError}</p>}
           {s.authError && <p style={{ color: "#f87171", fontSize: 13, textAlign: "center", margin: 0 }}>{s.authError}</p>}
         </div>
       </div>
