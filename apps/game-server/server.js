@@ -159,7 +159,7 @@ function startLobbyGame(lobby) {
   const game = createGame({ playerCount: lobby.players.length, playerNames: names, allowTransfer: false });
   lobby.players.forEach((p, i) => { p.engineId = game.players[i].id; });
   lobby.game = game; lobby.pending = null; lobby.settlement = null;
-  broadcastRoom(lobby); broadcastGame(lobby); return true;
+  broadcastRoom(lobby); broadcastGame(lobby); resetTurnTimer(lobby); return true;
 }
 // Ván lại online: chỉ bắt đầu khi mọi người còn online trong phòng đều đã
 // chọn ván lại (và ít nhất 2 người). Người bấm Về sảnh (leave) hoặc mất kết
@@ -180,7 +180,7 @@ function maybeStartRematch(lobby) {
   for (const p of lobby.players) if (!eligible.includes(p)) p.left = true;
   clearPending(lobby);
   lobby.game = game; lobby.pending = null; lobby.settlement = null; lobby.rematchReady = new Set();
-  broadcastRoom(lobby); broadcastGame(lobby); return true;
+  broadcastRoom(lobby); broadcastGame(lobby); resetTurnTimer(lobby); return true;
 }
 function addablePlayers(lobby, excludeEngineIds) {
   if (!lobby.game) return [];
@@ -207,8 +207,75 @@ function executePending(lobby) {
   broadcast(lobby, { type: "follow-end", mode: pend.type === "TAKE" ? "take" : "finish" });
   broadcastGame(lobby);
   maybeSettle(lobby);
+  resetTurnTimer(lobby);
+}
+// ---- Đồng hồ lượt phía server (30s, giống đồng hồ client) ----
+// Người tới lượt mà không đánh (AFK, rớt mạng, tab bị bóp) thì server tự đánh
+// thay, ván không kẹt. Không cầm đồng hồ trong lúc giữ theo 5s (lobby.pending)
+// và khi ván đã xong. Đi qua cùng đường lệnh người chơi (kể cả giữ theo 5s).
+const TURN_TIMEOUT_MS = 30000;
+function clearTurnTimer(lobby) {
+  if (lobby.turnTimer) { clearTimeout(lobby.turnTimer); lobby.turnTimer = null; }
+}
+// Ai đang phải hành động lúc này:
+// - ATTACKING: người tấn.
+// - DEFENDING còn lá chưa đỡ: người đỡ (hết giờ -> lên bài).
+// - DEFENDING đã đỡ hết: người tấn (hết giờ -> thêm lá yếu nhất hoặc kết thúc đợt).
+function turnHolder(game) {
+  if (!game) return null;
+  if (game.phase === "ATTACKING") return { engineId: game.attackerId, kind: "attack" };
+  if (game.phase === "DEFENDING") {
+    if (game.table.some((x) => !x.defense)) return { engineId: game.defenderId, kind: "take" };
+    return { engineId: game.attackerId, kind: "attack" };
+  }
+  return null;
+}
+function weakestAttackCard(lobby, holderEngineId) {
+  const game = lobby.game; if (!game) return null;
+  const holder = game.players.find((p) => p.id === holderEngineId);
+  if (!holder) return null;
+  const playable = holder.hand.filter((c) => canAttackCard(game, holderEngineId, c));
+  if (!playable.length) return null;
+  // Yếu nhất: hạng thấp nhất; đồng hạng thì giữ lá chủ lại.
+  playable.sort((a, b) => (a.rank - b.rank) || ((a.suit === game.trumpSuit ? 1 : 0) - (b.suit === game.trumpSuit ? 1 : 0)));
+  return playable[0];
+}
+function resetTurnTimer(lobby) {
+  clearTurnTimer(lobby);
+  if (!lobby.game || lobby.game.phase === "FINISHED" || lobby.pending) return;
+  if (!turnHolder(lobby.game)) return;
+  lobby.turnTimer = setTimeout(() => runTurnTimeout(lobby), TURN_TIMEOUT_MS);
+}
+function runTurnTimeout(lobby) {
+  lobby.turnTimer = null;
+  if (lobbies.get(lobby.code) !== lobby || !lobby.game) return;
+  const holder = turnHolder(lobby.game); if (!holder) return;
+  const holderPlayer = lobby.players.find((p) => p.engineId === holder.engineId);
+  if (holder.kind === "take") applyServerCommand(lobby, holderPlayer, holder.engineId, "TAKE", {});
+  else {
+    const card = weakestAttackCard(lobby, holder.engineId);
+    if (card) applyServerCommand(lobby, holderPlayer, holder.engineId, "ATTACK", { cardId: card.id });
+    else applyServerCommand(lobby, holderPlayer, holder.engineId, "FINISH_ATTACK", {});
+  }
+}
+function applyServerCommand(lobby, player, engineId, cmdType, payload) {
+  if (!lobby.game) return;
+  const cmd = { actionId: randomUUID(), expectedVersion: lobby.game.version, playerId: engineId, type: cmdType, payload };
+  if ((cmdType === "TAKE" || cmdType === "FINISH_ATTACK") && !lobby.pending) {
+    if (startPending(lobby, cmdType, player || { name: "Máy chủ" }, engineId)) return;
+  }
+  const result = lobby.processor.apply(lobby.game, cmd, lobby.players.map((p) => p.engineId));
+  if (result.accepted) {
+    if (cmdType === "ATTACK" && lobby.pending?.type === "FINISH_ATTACK") {
+      clearPending(lobby); broadcast(lobby, { type: "follow-end", mode: "finish" });
+    }
+    broadcastGame(lobby); broadcastRoom(lobby); maybeSettle(lobby);
+  }
+  // Lệnh bị từ chối (lượt đã đổi) thì cầm đồng hồ lại cho lượt hiện tại.
+  resetTurnTimer(lobby);
 }
 function startPending(lobby, type, actorPlayer, actorEngineId) {
+  clearTurnTimer(lobby); // trong lúc giữ theo 5s thì không cầm đồng hồ lượt
   const exclude = type === "TAKE" ? [actorEngineId] : [actorEngineId, lobby.game.defenderId];
   const adders = addablePlayers(lobby, exclude);
   if (!adders.length) return false;
@@ -320,7 +387,7 @@ wss.on("connection", (ws) => {
         const session = msg.sessionToken ? sessions.get(msg.sessionToken) : null;
         const code = makeCode();
         const level = isValidLevel(Number(msg.level)) ? Number(msg.level) : 50_000;
-        const lb = { code, bet: formatCoins(level), level, maxPlayers: Math.min(4, Math.max(2, Number(msg.maxPlayers || 4))), isPublic: !!msg.isPublic, hostId: null, players: [], game: null, processor: createCommandProcessor(), pending: null, balances: new Map(), settlement: null, rematchReady: new Set() };
+        const lb = { code, bet: formatCoins(level), level, maxPlayers: Math.min(4, Math.max(2, Number(msg.maxPlayers || 4))), isPublic: !!msg.isPublic, hostId: null, players: [], game: null, processor: createCommandProcessor(), pending: null, balances: new Map(), settlement: null, rematchReady: new Set(), turnTimer: null };
         const pl = { id: randomUUID(), token: randomUUID(), name: (session?.name || msg.name || "Bạn").toString().slice(0, 30), avatar: session?.avatar || msg.avatar || null, googleId: session?.googleId || null, ready: false, socket: ws, engineId: null };
         lb.hostId = pl.id; lb.players.push(pl); lobbies.set(code, lb); attach(lb, pl);
         ws.send(JSON.stringify({ type: "joined", playerId: pl.id, token: pl.token, code, isHost: true }));
@@ -384,7 +451,7 @@ wss.on("connection", (ws) => {
           clearPending(lobby); broadcast(lobby, { type: "follow-end", mode: "finish" });
         }
         ws.send(JSON.stringify({ type: "command-result", accepted: true, version: result.version }));
-        broadcastGame(lobby); broadcastRoom(lobby); maybeSettle(lobby); return;
+        broadcastGame(lobby); broadcastRoom(lobby); maybeSettle(lobby); resetTurnTimer(lobby); return;
       }
       if (msg.type === "chat") {
         const text = String(msg.text || "").slice(0, 200).trim(); if (!text) return;
@@ -393,7 +460,7 @@ wss.on("connection", (ws) => {
       if (msg.type === "leave") {
         if (!lobby.game) {
           lobby.players = lobby.players.filter((p) => p.id !== player.id);
-          if (!lobby.players.length) { lobbies.delete(lobby.code); }
+          if (!lobby.players.length) { clearTurnTimer(lobby); lobbies.delete(lobby.code); }
           else { if (lobby.hostId === player.id) lobby.hostId = lobby.players[0].id; broadcastRoom(lobby); }
         } else { player.socket = null; player.left = true; lobby.rematchReady.delete(player.id); broadcastRoom(lobby); maybeStartRematch(lobby); }
         lobby = null; player = null; return;
