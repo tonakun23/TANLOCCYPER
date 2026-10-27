@@ -38,6 +38,52 @@ function gameStage(): { phone: boolean; scale: number; left: number; top: number
   return { phone, scale, left: (window.innerWidth - STAGE_W * scale) / 2, top: (window.innerHeight - STAGE_H * scale) / 2 };
 }
 
+// Vòng quay SPIN kiểu ảnh Tony gửi: vành đỏ đậm + đinh vàng + chữ SPIN vàng.
+// 8 ô (bản thử: chỉ hiện kết quả, chưa cộng xu — chờ chốt luật thưởng).
+const SPIN_PRIZES = ["10K", "1M", "50K", "2M", "100K", "500K", "200K", "Lần sau"];
+function spinPolar(cx: number, cy: number, r: number, deg: number): [number, number] {
+  const a = (deg - 90) * Math.PI / 180;
+  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+}
+function SpinWheel({ rot, onHubClick }: { rot: number; onHubClick: () => void }) {
+  const CX = 200, CY = 200, R = 172;
+  return (
+    <svg viewBox="0 0 400 400" style={{ width: "100%", height: "auto", display: "block" }}>
+      <circle cx={CX} cy={CY} r={198} fill="#450A0A" />
+      <circle cx={CX} cy={CY} r={198} fill="none" stroke="#FACC15" strokeWidth={3} />
+      {Array.from({ length: 16 }, (_, k) => {
+        const [x, y] = spinPolar(CX, CY, 186, k * 22.5);
+        return <circle key={k} cx={x} cy={y} r={7} fill="#FACC15" stroke="#92400E" strokeWidth={1.5} />;
+      })}
+      <g style={{ transform: `rotate(${rot}deg)`, transformOrigin: "200px 200px", transition: "transform 5s cubic-bezier(0.15, 0.9, 0.25, 1)" }}>
+        <circle cx={CX} cy={CY} r={R} fill="#991B1B" />
+        {SPIN_PRIZES.map((_, i) => {
+          const [x0, y0] = spinPolar(CX, CY, R, i * 45);
+          const [x1, y1] = spinPolar(CX, CY, R, (i + 1) * 45);
+          const [sx, sy] = spinPolar(CX, CY, R, i * 45);
+          return (
+            <g key={i}>
+              <path d={`M ${CX} ${CY} L ${x0.toFixed(1)} ${y0.toFixed(1)} A ${R} ${R} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)} Z`} fill={i % 2 === 0 ? "#991B1B" : "#B91C1C"} />
+              <line x1={CX} y1={CY} x2={sx} y2={sy} stroke="#FACC15" strokeWidth={2} />
+            </g>
+          );
+        })}
+        <circle cx={CX} cy={CY} r={R} fill="none" stroke="#FACC15" strokeWidth={3} />
+        {SPIN_PRIZES.map((p, i) => (
+          <g key={i} transform={`rotate(${i * 45 + 22.5} ${CX} ${CY})`}>
+            <text x={CX} y={CY - 108} textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" fontSize={p === "Lần sau" ? 15 : 21} fontWeight={900} fill="#FDE68A">{p}</text>
+          </g>
+        ))}
+      </g>
+      <g onClick={onHubClick} style={{ cursor: "pointer" }}>
+        <circle cx={CX} cy={CY} r={52} fill="#FACC15" stroke="#92400E" strokeWidth={3} />
+        <text x={CX} y={CY + 8} textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" fontSize={21} fontWeight={900} fill="#7F1D1D">SPIN</text>
+      </g>
+      <polygon points="200,2 182,36 218,36" fill="#FACC15" stroke="#92400E" strokeWidth={2} />
+    </svg>
+  );
+}
+
 export default function App() {
   const s = useGameStore();
   const [seconds, setSeconds] = useState(30);
@@ -60,6 +106,10 @@ export default function App() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [spinOpen, setSpinOpen] = useState(false);
+  const [spinRot, setSpinRot] = useState(0);
+  const [spinBusy, setSpinBusy] = useState(false);
+  const [spinResult, setSpinResult] = useState<string | null>(null);
   const [stage, setStage] = useState(gameStage);
   useEffect(() => {
     const update = () => setStage(gameStage());
@@ -357,6 +407,15 @@ export default function App() {
       </div>
     </div>
   );
+  // Vòng quay SPIN (bản thử: quay + hiện kết quả, chưa cộng xu — chờ chốt luật thưởng).
+  const spinWheel = () => {
+    if (spinBusy) return;
+    setSpinBusy(true); setSpinResult(null);
+    const seg = Math.floor(Math.random() * 8);
+    const mid = seg * 45 + 22.5;
+    setSpinRot((prev) => prev - (prev % 360) + 360 * 5 + (360 - mid));
+    window.setTimeout(() => { setSpinResult(SPIN_PRIZES[seg]); setSpinBusy(false); }, 5100);
+  };
   const homeBottom = (
     <div className="tan-bottom">
       <div className="tan-bottom-group">
@@ -365,7 +424,7 @@ export default function App() {
         <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><Gift {...ic} /></span><span className="tan-badge">10</span></button>
         <button className="tan-bottom-btn" onClick={() => setHistoryOpen(true)} aria-label="Lịch sử xu"><span className="circle"><ClipboardList {...ic} /></span></button>
       </div>
-      <button className="tan-spin" style={{ cursor: "default" }}>SPIN</button>
+      <button className="tan-spin" onClick={() => setSpinOpen(true)} aria-label="Vòng quay">SPIN</button>
       <div className="tan-bottom-group">
         <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle">f</span></button>
         <button className="tan-bottom-btn" style={{ cursor: "default" }}><span className="circle"><Users {...ic} /></span></button>
@@ -706,6 +765,20 @@ export default function App() {
           </button>
         </div>
         {homeBottom}
+        {spinOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => { if (!spinBusy) setSpinOpen(false); }}>
+            <div className="w-full max-w-md bg-red-950 border-2 border-yellow-400 rounded-2xl p-4 text-center" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-2">
+                <h2 className="font-black text-xl text-yellow-300">VÒNG QUAY MAY MẮN</h2>
+                <button aria-label="Đóng vòng quay" onClick={() => { if (!spinBusy) setSpinOpen(false); }}><X size={20} /></button>
+              </div>
+              <SpinWheel rot={spinRot} onHubClick={spinWheel} />
+              <button className="bg-red-600 text-white font-black px-8 py-3 rounded-full mt-3 border-2 border-yellow-400 disabled:opacity-60" disabled={spinBusy} onClick={spinWheel}>{spinBusy ? "Đang quay…" : "QUAY"}</button>
+              {spinResult && <p className="font-black text-yellow-300 mt-3">Bạn quay trúng: {spinResult}</p>}
+              <p className="text-white/50 text-xs mt-2">Bản thử — giải thưởng chưa cộng vào số dư, chờ chốt luật thưởng.</p>
+            </div>
+          </div>
+        )}
         {historyOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setHistoryOpen(false)}>
             <div className="w-full max-w-lg max-h-[85vh] overflow-auto bg-red-900 border border-yellow-400 rounded-2xl p-5 text-sm leading-relaxed" onClick={(e) => e.stopPropagation()}>
