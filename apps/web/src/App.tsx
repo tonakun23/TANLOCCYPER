@@ -4,7 +4,7 @@ import { CardView } from "./components/CardView";
 import { TableCanvas } from "./components/TableCanvas";
 import { parseCard, SUIT_NAME, SUIT_SYMBOL, canBeat, canAttackCard, cardLabel } from "../../../packages/game-core/src/engine";
 import { TABLE_LEVELS, formatCoins, minBalance, formatBalanceShort, liveTakeTotals, START_BALANCE } from "../../../packages/game-core/src/coins";
-import { X, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, Crown, LogOut, Heart, Search, } from "lucide-react";
+import { X, Users, HelpCircle, Settings, UserPlus, Trophy, Gift, ClipboardList, Backpack, Home, MessageCircle, Timer, Minus, Plus, Swords, Shield, Check, Volume2, Crown, LogOut, Heart, Search, Maximize, Minimize, } from "lucide-react";
 import { playDealSound, playCardSound, playTrumpAceSound, playAttackSound, playDefendSound, setSoundEnabled, setSoundVolume } from "./game/sound";
 const ic = { size: 22, strokeWidth: 2 };
 // Bảng hạng phòng (kiểu ảnh mẫu): mỗi hạng là một khoảng mức cược, phòng thật nào cũng rơi đúng 1 hạng.
@@ -64,6 +64,20 @@ export default function App() {
     const id = setInterval(() => { void s.loadPublicRooms(); }, 5000);
     return () => clearInterval(id);
   }, [s.screen]);
+  // Full màn hình trên điện thoại (nút ở header ván đấu): Android xin được, iPhone Apple chặn nên chỉ đường cài app mới full thật.
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const update = () => setIsFullscreen(!!document.fullscreenElement);
+    update();
+    document.addEventListener("fullscreenchange", update);
+    return () => document.removeEventListener("fullscreenchange", update);
+  }, []);
+  const toggleFullscreen = async () => {
+    if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch { /* bỏ qua */ } return; }
+    const el = document.documentElement as unknown as { requestFullscreen?: () => Promise<void> };
+    if (el.requestFullscreen) { try { await el.requestFullscreen(); } catch { s.addLog("Không xin được full màn, thử cài app ra màn hình chính."); } }
+    else s.addLog("Máy này không cho web tự full màn: thêm game vào Màn hình chính rồi mở bằng icon đó là full màn thật.");
+  };
   // Bong bóng chat trên avatar: hiện 6 giây rồi tự ẩn.
   useEffect(() => {
     if (!bubble) return;
@@ -778,6 +792,7 @@ export default function App() {
         <span className="flex gap-2 items-center">
           {s.roomCode && <span className="bg-yellow-400 text-black font-bold px-3 h-9 rounded-full flex items-center text-sm">Mã phòng: {s.roomCode}</span>}
           <button className="px-4 h-9 rounded-full bg-red-900 border border-white/30 text-sm" onClick={() => setChatOpen((v) => !v)}><span className="flex items-center gap-1"><MessageCircle size={18} /> Chat{s.chat.length > 1 ? ` (${s.chat.length - 1})` : ""}</span></button>
+          <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 flex items-center justify-center" title={isFullscreen ? "Thoát full màn" : "Full màn hình"} onClick={() => void toggleFullscreen()}>{isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}</button>
           <button className="w-9 h-9 rounded-full bg-red-900 border border-white/30 flex items-center justify-center" title="Cài đặt âm thanh" onClick={() => setSettingsOpen(true)}><Settings size={18} /></button>
         </span>
       </div>
