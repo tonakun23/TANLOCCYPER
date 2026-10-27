@@ -109,7 +109,7 @@ export default function App() {
   const [spinOpen, setSpinOpen] = useState(false);
   const [spinRot, setSpinRot] = useState(0);
   const [spinBusy, setSpinBusy] = useState(false);
-  const [spinResult, setSpinResult] = useState<string | null>(null);
+  const [, setSpinResult] = useState<string | null>(null);
   const [stage, setStage] = useState(gameStage);
   useEffect(() => {
     const update = () => setStage(gameStage());
@@ -407,7 +407,7 @@ export default function App() {
       </div>
     </div>
   );
-  // Vòng quay SPIN (bản thử: quay + hiện kết quả, chưa cộng xu — chờ chốt luật thưởng).
+  // Vòng quay SPIN (bản thử: chỉ quay, chưa cộng xu — chờ chốt luật thưởng).
   const spinWheel = () => {
     if (spinBusy) return;
     setSpinBusy(true); setSpinResult(null);
@@ -767,15 +767,8 @@ export default function App() {
         {homeBottom}
         {spinOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => { if (!spinBusy) setSpinOpen(false); }}>
-            <div className="w-full max-w-md bg-red-950 border-2 border-yellow-400 rounded-2xl p-4 text-center" onClick={(e) => e.stopPropagation()}>
-              <div className="flex justify-between items-center mb-2">
-                <h2 className="font-black text-xl text-yellow-300">VÒNG QUAY MAY MẮN</h2>
-                <button aria-label="Đóng vòng quay" onClick={() => { if (!spinBusy) setSpinOpen(false); }}><X size={20} /></button>
-              </div>
+            <div style={{ width: "min(92vw, 420px)" }} onClick={(e) => e.stopPropagation()}>
               <SpinWheel rot={spinRot} onHubClick={spinWheel} />
-              <button className="bg-red-600 text-white font-black px-8 py-3 rounded-full mt-3 border-2 border-yellow-400 disabled:opacity-60" disabled={spinBusy} onClick={spinWheel}>{spinBusy ? "Đang quay…" : "QUAY"}</button>
-              {spinResult && <p className="font-black text-yellow-300 mt-3">Bạn quay trúng: {spinResult}</p>}
-              <p className="text-white/50 text-xs mt-2">Bản thử — giải thưởng chưa cộng vào số dư, chờ chốt luật thưởng.</p>
             </div>
           </div>
         )}
